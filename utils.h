@@ -86,7 +86,7 @@ std::vector<cv::Rect> DetectFaces(cv::Mat_<uchar>& image, cv::CascadeClassifier&
 
 double CalculateError(cv::Mat_<double>& ground_truth_shape, cv::Mat_<double>& predicted_shape);
 
-void DrawPredictImage(cv::Mat_<uchar>& image, cv::Mat_<double>& shape);
+void DrawPredictImage(const cv::Mat_<uchar>& image, cv::Mat_<double>& shape);
 
 BoundingBox GetBoundingBox(cv::Mat_<double>& shape);
 

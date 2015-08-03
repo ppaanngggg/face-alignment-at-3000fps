@@ -58,15 +58,6 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 
     std::cout << "augmented size: " << augmented_current_shapes.size() << std::endl;
 
-// 	for (int i = 0; i<augmented_current_shapes.size(); i++) {
-// 		cv::Mat tmp_image = images[augmented_images_index[i]].clone();
-// //        DrawPredictImage(tmp_image, augmented_current_shapes[i]);
-// 		for (int j = 0; j < augmented_current_shapes[i].rows; j++){
-// 			cv::circle(tmp_image, cv::Point2f(augmented_current_shapes[i](j, 0), augmented_current_shapes[i](j, 1)), 2, (255));
-// 		}
-// 		cv::imshow("show image", tmp_image);
-// 		cv::waitKey(0);
-//    }
 
 	std::vector<cv::Mat_<double> > shape_increaments;
 
@@ -85,7 +76,15 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 		for (int j = 0; j < shape_increaments.size(); j++){
 			cv::Mat(shape_increaments[j].col(0) * augmented_bboxes[j].width).copyTo(shape_increaments[j].col(0));
 			cv::Mat(shape_increaments[j].col(1) * augmented_bboxes[j].height).copyTo(shape_increaments[j].col(1));
+            
+            if(i == 0)
+                DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
+            
 			augmented_current_shapes[j] = shape_increaments[j] + augmented_current_shapes[j];
+            
+            if(i == 0)
+                DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
+        
 			augmented_bboxes[j] = GetBoundingBox(augmented_current_shapes[j]);
 			error += CalculateError(augmented_ground_truth_shapes[j], augmented_current_shapes[j]);
 		}
@@ -282,7 +281,6 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
         check_parameter(prob, regression_params);
         regression_model = train(prob, regression_params);
         linear_model_y_[i] = regression_model;
-
     }
     for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
         delete[] targets[i];// = new double[augmented_current_shapes.size()];

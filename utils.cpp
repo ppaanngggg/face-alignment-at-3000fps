@@ -216,7 +216,7 @@ void LoadImages(std::vector<cv::Mat_<uchar> >& images,
     //    DrawPredictImage(image, ground_truth_shape);
 
         count++;
-        if (count%5 == 0){
+        if (count%100 == 0){
             std::cout << count << " images loaded\n";
             return;
         }
@@ -230,16 +230,18 @@ double CalculateError(cv::Mat_<double>& ground_truth_shape, cv::Mat_<double>& pr
 	cv::Mat_<double> temp;
 	double sum = 0;
 	for (int i = 0; i<ground_truth_shape.rows; i++){
-		sum += norm(ground_truth_shape.row(i) - predicted_shape.row(i));
+        sum += cv::norm(ground_truth_shape.row(i) - predicted_shape.row(i));
 	}
     return sum / (ground_truth_shape.rows);
 }
 
-void DrawPredictImage(cv::Mat_<uchar> &image, cv::Mat_<double>& shape){
+void DrawPredictImage(const cv::Mat_<uchar> &image, cv::Mat_<double>& shape){
+    cv::Mat tmp_img;
+    cv::cvtColor(image, tmp_img, cv::COLOR_GRAY2BGR);
 	for (int i = 0; i < shape.rows; i++){
-		cv::circle(image, cv::Point2f(shape(i, 0), shape(i, 1)), 2, (255));
+        cv::circle(tmp_img, cv::Point2f(shape(i, 0), shape(i, 1)), 2, cv::Scalar(255,0,0));
 	}
-	cv::imshow("show image", image);
+	cv::imshow("show image", tmp_img);
 	cv::waitKey(0);
 }
 
