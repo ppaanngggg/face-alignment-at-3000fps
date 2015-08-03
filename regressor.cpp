@@ -22,12 +22,12 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 	params_ = params;
 	bboxes_ = bboxes;
 	ground_truth_shapes_ = ground_truth_shapes;
-	
+
 	std::vector<int> augmented_images_index; // just index in images_
 	std::vector<BoundingBox> augmented_bboxes;
 	std::vector<cv::Mat_<double> > augmented_ground_truth_shapes;
 	std::vector<cv::Mat_<double> > augmented_current_shapes; //
-	
+
 	time_t current_time;
 	current_time = time(0);
 	//cv::RNG *random_generator = new cv::RNG();
@@ -41,30 +41,41 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 				index = random_generator.uniform(0, images_.size());
 			}while(index == i);
 
-			augmented_images_index.push_back(i);
-			augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
-			augmented_bboxes.push_back(bboxes_[i]);
 			cv::Mat_<double> temp = ground_truth_shapes_[index];
 			temp = ProjectShape(temp, bboxes_[index]);
 			temp = ReProjection(temp, bboxes_[i]);
+			augmented_images_index.push_back(i);
+			augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
+			augmented_bboxes.push_back(GetBoundingBox(temp));
 			augmented_current_shapes.push_back(temp);
 		}
+		cv::Mat_<double> augmented_mean_shape = ReProjection(params_.mean_shape_, bboxes_[i]);
         augmented_images_index.push_back(i);
         augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
-        augmented_bboxes.push_back(bboxes_[i]);
-        augmented_current_shapes.push_back(ReProjection(params_.mean_shape_, bboxes_[i]));
+        augmented_bboxes.push_back(GetBoundingBox(augmented_mean_shape));
+        augmented_current_shapes.push_back(augmented_mean_shape);
 	}
 
     std::cout << "augmented size: " << augmented_current_shapes.size() << std::endl;
 
+// 	for (int i = 0; i<augmented_current_shapes.size(); i++) {
+// 		cv::Mat tmp_image = images[augmented_images_index[i]].clone();
+// //        DrawPredictImage(tmp_image, augmented_current_shapes[i]);
+// 		for (int j = 0; j < augmented_current_shapes[i].rows; j++){
+// 			cv::circle(tmp_image, cv::Point2f(augmented_current_shapes[i](j, 0), augmented_current_shapes[i](j, 1)), 2, (255));
+// 		}
+// 		cv::imshow("show image", tmp_image);
+// 		cv::waitKey(0);
+//    }
+
 	std::vector<cv::Mat_<double> > shape_increaments;
-	
-regressors_.resize(params_.regressor_stages_);
+
+    regressors_.resize(params_.regressor_stages_);
 	for (int i = 0; i < params_.regressor_stages_; i++){
 		std::cout << "training stage: " << i << " of " << params_.regressor_stages_ << std::endl;
 		shape_increaments = regressors_[i].Train(images_,
-											augmented_images_index,  
-											augmented_ground_truth_shapes, 
+											augmented_images_index,
+											augmented_ground_truth_shapes,
 											augmented_bboxes,
 											augmented_current_shapes,
 											params_,
@@ -72,11 +83,13 @@ regressors_.resize(params_.regressor_stages_);
 		std::cout << "update current shapes" << std::endl;
 		double error = 0.0;
 		for (int j = 0; j < shape_increaments.size(); j++){
-			augmented_current_shapes[j] = shape_increaments[j] + ProjectShape(augmented_current_shapes[j], augmented_bboxes[j]);
-			augmented_current_shapes[j] = ReProjection(augmented_current_shapes[j], augmented_bboxes[j]);
+			cv::Mat(shape_increaments[j].col(0) * augmented_bboxes[j].width).copyTo(shape_increaments[j].col(0));
+			cv::Mat(shape_increaments[j].col(1) * augmented_bboxes[j].height).copyTo(shape_increaments[j].col(1));
+			augmented_current_shapes[j] = shape_increaments[j] + augmented_current_shapes[j];
+			augmented_bboxes[j] = GetBoundingBox(augmented_current_shapes[j]);
 			error += CalculateError(augmented_ground_truth_shapes[j], augmented_current_shapes[j]);
 		}
-		
+
         std::cout << "regression error: " <<  error << ": " << error/shape_increaments.size() << std::endl;
 	}
 }
@@ -87,89 +100,123 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 	const std::vector<BoundingBox>& augmented_bboxes,
 	const std::vector<cv::Mat_<double> >& augmented_current_shapes,
 	const Parameters& params,
-	const int stage){
+	const int stage)
+{
 
 	stage_ = stage;
 	params_ = params;
 
 	std::vector<cv::Mat_<double> > regression_targets;
-	std::vector<cv::Mat_<double> > rotations_;
-	std::vector<double> scales_;
+	std::vector<cv::Mat_<double> > affines;
 	regression_targets.resize(augmented_current_shapes.size());
-	rotations_.resize(augmented_current_shapes.size());
-	scales_.resize(augmented_current_shapes.size());
+	affines.resize(augmented_current_shapes.size());
 
 	// calculate the regression targets
 	std::cout << "calculate regression targets" << std::endl;
-    #pragma omp parallel for
+    // #pragma omp parallel for
 	for (int i = 0; i < augmented_current_shapes.size(); i++){
-		regression_targets[i] = ProjectShape(augmented_ground_truth_shapes[i], augmented_bboxes[i])
-			- ProjectShape(augmented_current_shapes[i], augmented_bboxes[i]);
-		cv::Mat_<double> rotation;
-		double scale;
-		getSimilarityTransform(params_.mean_shape_, ProjectShape(augmented_current_shapes[i], augmented_bboxes[i]), rotation, scale);
-		cv::transpose(rotation, rotation);
-		regression_targets[i] = scale * regression_targets[i] * rotation;
-		getSimilarityTransform(ProjectShape(augmented_current_shapes[i], augmented_bboxes[i]), params_.mean_shape_, rotation, scale);
-		rotations_[i] = rotation;
-		scales_[i] = scale;
+		//turn mean_shape and current_shape to their center, used to compute affine
+		cv::Mat mean_shape_resize = ReProjection(params_.mean_shape_, augmented_bboxes[i]);
+		cv::Mat tmp_mean_shape_resize(params.mean_shape_.rows, 2, params.mean_shape_.depth());
+		cv::Mat tmp_current_shape(params.mean_shape_.rows, 2, params.mean_shape_.depth());
+		cv::Mat(mean_shape_resize.col(0) - mean(mean_shape_resize.col(0))).copyTo(tmp_mean_shape_resize.col(0));
+		cv::Mat(mean_shape_resize.col(1) - mean(mean_shape_resize.col(1))).copyTo(tmp_mean_shape_resize.col(1));
+		cv::Mat(augmented_current_shapes[i].col(0) - mean(augmented_current_shapes[i].col(0))).copyTo(
+			tmp_current_shape.col(0));
+		cv::Mat(augmented_current_shapes[i].col(1) - mean(augmented_current_shapes[i].col(1))).copyTo(
+			tmp_current_shape.col(1));
+		// std::cout<<"tmp_mean_shape_resize :"<<tmp_mean_shape_resize<<std::endl;
+		// std::cout<<"tmp_current_shape :"<<tmp_current_shape<<std::endl;
+
+		//compute affine from current_shape to mean_shape
+		cv::Mat_<double> affine;
+		getAffineTransform(tmp_mean_shape_resize, tmp_current_shape, affine);
+
+		//compute regression_target and transform it into union
+		cv::Mat regression_target = augmented_ground_truth_shapes[i] - augmented_current_shapes[i];
+		cv::Mat(regression_target.col(0) / augmented_bboxes[i].width).copyTo(regression_target.col(0));
+		cv::Mat(regression_target.col(1) / augmented_bboxes[i].height).copyTo(regression_target.col(1));
+		// std::cout<<"regression_target :"<<regression_target<<std::endl;
+		regression_target = doAffineTransform(regression_target, affine);
+        regression_targets[i] = regression_target;
+		// std::cout<<"regression_target :"<<regression_target<<std::endl;
+		// std::cout<<"affine matrix :"<<affine<<std::endl;
+
+		//conpute affine from mean_shape to current_shape and add into vector
+		getAffineTransform(tmp_current_shape, tmp_mean_shape_resize, affine);
+		affines[i] = affine;
 	}
 
 	std::cout << "train forest of stage:" << stage_ << std::endl;
 	rd_forests_.resize(params_.landmarks_num_per_face_);
-    #pragma omp parallel for
+    // #pragma omp parallel for
 	for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
         std::cout << "landmark: " << i << std::endl;
 		rd_forests_[i] = RandomForest(params_, i, stage_, regression_targets);
         rd_forests_[i].TrainForest(
-			images,augmented_images_index, augmented_bboxes, augmented_current_shapes, 
-			rotations_, scales_);
+			images,augmented_images_index, augmented_bboxes, augmented_current_shapes, affines
+		);
 	}
 	std::cout << "Get Global Binary Features" << std::endl;
-
+	//build sparse feature_binary_code
     struct feature_node **global_binary_features;
     global_binary_features = new struct feature_node* [augmented_current_shapes.size()];
-
     for(int i = 0; i < augmented_current_shapes.size(); ++i){
-        global_binary_features[i] = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
+        global_binary_features[i] = new feature_node[
+			params_.trees_num_per_forest_ * params_.landmarks_num_per_face_ + 1
+		];
     }
+	//count total num of features
     int num_feature = 0;
     for (int i=0; i < params_.landmarks_num_per_face_; ++i){
         num_feature += rd_forests_[i].all_leaf_nodes_;
+		std::cout<<"all_leaf_nodes :"<<rd_forests_[i].all_leaf_nodes_<<std::endl;
     }
-    #pragma omp parallel for
+	//compute feature_binary_code for each augmented data
+    // #pragma omp parallel for
     for (int i = 0; i < augmented_current_shapes.size(); ++i){
         int index = 1;
         int ind = 0;
-        const cv::Mat_<double>& rotation = rotations_[i];
-        const double scale = scales_[i];
+		//get info of [i]th augmented data
+        const cv::Mat_<double>& affine = affines[i];
         const cv::Mat_<uchar>& image = images[augmented_images_index[i]];
         const BoundingBox& bbox = augmented_bboxes[i];
         const cv::Mat_<double>& current_shape = augmented_current_shapes[i];
+
+		// cv::Mat tmp_image;
+		// cv::cvtColor(image, tmp_image, cv::COLOR_GRAY2BGR);
+
+		//for each landmark and its each trees, compute binary code
     	for (int j = 0; j < params_.landmarks_num_per_face_; ++j){
     		for (int k = 0; k < params_.trees_num_per_forest_; ++k){
-
+				//pick [j]th landmark and travel [k]th tree
                 Node* node = rd_forests_[j].trees_[k];
                 while (!node->is_leaf_){
+
                     FeatureLocations& pos = node->feature_locations_;
-                    double delta_x = rotation(0, 0)*pos.start.x + rotation(0, 1)*pos.start.y;
-                    double delta_y = rotation(1, 0)*pos.start.x + rotation(1, 1)*pos.start.y;
-                    delta_x = scale*delta_x*bbox.width / 2.0;
-                    delta_y = scale*delta_y*bbox.height / 2.0;
+                    double delta_x = affine(0, 0)*pos.start.x + affine(1, 0)*pos.start.y + affine(2, 0);
+					double delta_y = affine(0, 1)*pos.start.x + affine(1, 1)*pos.start.y + affine(2, 1);
+                    delta_x *= bbox.width;
+                    delta_y *= bbox.height;
                     int real_x = delta_x + current_shape(j, 0);
                     int real_y = delta_y + current_shape(j, 1);
                     real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
                     real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
                     int tmp = (int)image(real_y, real_x); //real_y at first
 
-                    delta_x = rotation(0, 0)*pos.end.x + rotation(0, 1)*pos.end.y;
-                    delta_y = rotation(1, 0)*pos.end.x + rotation(1, 1)*pos.end.y;
-                    delta_x = scale*delta_x*bbox.width / 2.0;
-                    delta_y = scale*delta_y*bbox.height / 2.0;
+					// cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
+
+					delta_x = affine(0, 0)*pos.end.x + affine(1, 0)*pos.end.y + affine(2, 0);
+					delta_y = affine(0, 1)*pos.end.x + affine(1, 1)*pos.end.y + affine(2, 1);
+					delta_x *= augmented_bboxes[i].width;
+					delta_y *= augmented_bboxes[i].height;
                     real_x = delta_x + current_shape(j, 0);
                     real_y = delta_y + current_shape(j, 1);
                     real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
                     real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
+
+					// cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
+
                     if ((tmp - (int)image(real_y, real_x)) < node->threshold_){
                         node = node->left_child_;// go left
                     }
@@ -177,13 +224,20 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
                         node = node->right_child_;// go right
                     }
                 }
-                global_binary_features[i][ind].index = index + node->leaf_identity;//rd_forests_[j].GetBinaryFeatureIndex(k, images[augmented_images_index[i]], augmented_bboxes[i], augmented_current_shapes[i], rotations_[i], scales_[i]);
+                global_binary_features[i][ind].index = index + node->leaf_identity;
     			global_binary_features[i][ind].value = 1.0;
                 ind++;
                 //std::cout << global_binary_features[i][ind].index << " ";
     		}
             index += rd_forests_[j].all_leaf_nodes_;
     	}
+
+		// for (int j = 0; j < augmented_current_shapes[i].rows; j++){
+		//    cv::circle(tmp_image, cv::Point2f(augmented_current_shapes[i](j, 0), augmented_current_shapes[i](j, 1)), 2, cv::Scalar(255 ,0,0));
+		// }
+		// cv::imwrite("tmp_image_"+std::to_string(i)+".jpg", tmp_image);
+		// cv::waitKey();
+
         if (i%500 == 0 && i > 0){
             std::cout << "extracted " << i << " images" << std::endl;
         }
@@ -210,7 +264,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
     for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
         targets[i] = new double[augmented_current_shapes.size()];
     }
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
 
         std::cout << "regress landmark " << i << std::endl;
@@ -238,16 +292,14 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 
     std::vector<cv::Mat_<double> > predict_regression_targets;
     predict_regression_targets.resize(augmented_current_shapes.size());
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 0; i < augmented_current_shapes.size(); i++){
         cv::Mat_<double> a(params_.landmarks_num_per_face_, 2, 0.0);
         for (int j = 0; j < params_.landmarks_num_per_face_; j++){
             a(j, 0) = predict(linear_model_x_[j], global_binary_features[i]);
             a(j, 1) = predict(linear_model_y_[j], global_binary_features[i]);
         }
-        cv::Mat_<double> rot;
-        cv::transpose(rotations_[i], rot);
-        predict_regression_targets[i] = scales_[i] * a * rot;
+        predict_regression_targets[i] = doAffineTransform(a, affines[i]);
         if (i%500 == 0 && i > 0){
              std::cout << "predict " << i << " images" << std::endl;
         }
@@ -266,10 +318,10 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 
 cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 	cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& ground_truth_shape){
-	
-	cv::Mat_<uchar> tmp; 
+
+	cv::Mat_<uchar> tmp;
 	image.copyTo(tmp);
-	
+
 	for (int j = 0; j < current_shape.rows; j++){
 		cv::circle(tmp, cv::Point2f(current_shape(j, 0), current_shape(j, 1)), 2, (255));
 	}
@@ -277,7 +329,7 @@ cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 	cv::waitKey(0);
 
 	for (int i = 0; i < params_.regressor_stages_; i++){
-		
+
 		cv::Mat_<double> rotation;
 		double scale;
 		if(i==0){
@@ -285,7 +337,7 @@ cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 		}else{
 			getSimilarityTransform(ProjectShape(current_shape, bbox), params_.mean_shape_, rotation, scale);
 		}
-		
+
 		cv::Mat_<double> shape_increaments = regressors_[i].Predict(image, current_shape, bbox, rotation, scale);
 		current_shape = shape_increaments + ProjectShape(current_shape, bbox);
 		current_shape = ReProjection(current_shape, bbox);
@@ -302,7 +354,7 @@ cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 
 cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 	cv::Mat_<double>& current_shape, BoundingBox& bbox){
-	
+
 	for (int i = 0; i < params_.regressor_stages_; i++){
         cv::Mat_<double> rotation;
 		double scale;
@@ -414,7 +466,7 @@ struct feature_node* Regressor::GetGlobalBinaryFeaturesMP(cv::Mat_<uchar>& image
 
     struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
     //int ind = 0;
-#pragma omp parallel for
+// #pragma omp parallel for
     for (int j = 0; j < params_.landmarks_num_per_face_; ++j)
     {
         for (int k = 0; k < params_.trees_num_per_forest_; ++k)
@@ -473,7 +525,7 @@ struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
     struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
     int ind = 0;
     for (int j = 0; j < params_.landmarks_num_per_face_; ++j)
-    {      
+    {
         for (int k = 0; k < params_.trees_num_per_forest_; ++k)
         {
             Node* node = rd_forests_[j].trees_[k];
@@ -525,7 +577,7 @@ struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
 
 cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
 	cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale){
-	
+
 	cv::Mat_<double> predict_result(current_shape.rows, current_shape.cols, 0.0);
 
     //feature_node* binary_features = GetGlobalBinaryFeaturesThread(image, current_shape, bbox, rotation, scale);
@@ -555,7 +607,7 @@ void CascadeRegressor::LoadCascadeRegressor(std::string ModelName){
 	std::ifstream fin;
     fin.open((ModelName + "_params.txt").c_str(), std::fstream::in);
 	params_ = Parameters();
-	fin >> params_.local_features_num_ 
+	fin >> params_.local_features_num_
 		>> params_.landmarks_num_per_face_
 		>> params_.regressor_stages_
 		>> params_.tree_depth_
@@ -600,7 +652,7 @@ void CascadeRegressor::SaveCascadeRegressor(std::string ModelName){
 	}
 
 	fout.close();
-	
+
     for (int i = 0; i < params_.regressor_stages_; i++){
 		//regressors_[i].SaveRegressor(fout);
         regressors_[i].SaveRegressor(ModelName, i);
@@ -647,7 +699,7 @@ void Regressor::SaveRegressor(std::string ModelName, int stage){
 	//strcpy(buffer, ModelName.c_str());
 	assert(stage == stage_);
     sprintf(buffer, "%s_%d_regressor.txt", ModelName.c_str(), stage);
-	
+
 	std::ofstream fout;
 	fout.open(buffer, std::fstream::out);
 	fout << stage_ << " "
@@ -677,4 +729,3 @@ void Regressor::SaveRegressor(std::string ModelName, int stage){
 		save_model(buffer, linear_model_y_[i]);
 	}
 }
-

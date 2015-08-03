@@ -7,7 +7,7 @@
 #include "headers.h"
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <omp.h>
+// #include <omp.h>
 
 //#include <sys/time.h>
 //#include "facedetect-dll.h"
@@ -119,7 +119,7 @@ void Train(const char* ModelName){
 	LoadImages(images, ground_truth_shapes, bboxes, file_names);
 
 	Parameters params;
-    params.local_features_num_ = 500;
+    params.local_features_num_ = 10;
 	params.landmarks_num_per_face_ = 68;
     params.regressor_stages_ = 5;
 	params.local_radius_by_stage_.push_back(0.4);
@@ -130,7 +130,7 @@ void Train(const char* ModelName){
     params.local_radius_by_stage_.push_back(0.05);
     params.tree_depth_ = 4;
     params.trees_num_per_forest_ = 5;
-    params.initial_guess_ = 5;
+    params.initial_guess_ = 1;
 
 	params.mean_shape_ = GetMeanShape(ground_truth_shapes, bboxes);
 	CascadeRegressor cas_reg;
@@ -179,7 +179,7 @@ int main(int argc, char* argv[])
 	}
 
     std::cout << "use [./application train ModelName] or [./application test ModelName [image_name]] \n";
-	return 0;	
+	return 0;
 }
 
 /*

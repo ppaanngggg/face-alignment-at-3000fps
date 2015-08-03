@@ -8,12 +8,8 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <thread>
-//#include <mutex>
 #include <atomic>
-//using namespace std;
-//using namespace cv;
 
-//std::mutex m;
 class BoundingBox {
 public:
 	double start_x;
@@ -63,16 +59,25 @@ public:
 cv::Mat_<double> ProjectShape(const cv::Mat_<double>& shape, const BoundingBox& bbox);
 cv::Mat_<double> ReProjection(const cv::Mat_<double>& shape, const BoundingBox& bbox);
 cv::Mat_<double> GetMeanShape(const std::vector<cv::Mat_<double> >& all_shapes,
-	const std::vector<BoundingBox>& all_bboxes);
+                              const std::vector<BoundingBox>& all_bboxes);
 void getSimilarityTransform(const cv::Mat_<double>& shape_to,
+    const cv::Mat_<double>& shape_from,
+	cv::Mat_<double>& rotation, double& scale
+);
+void getAffineTransform(const cv::Mat_<double>& shape_to,
 	const cv::Mat_<double>& shape_from,
-	cv::Mat_<double>& rotation, double& scale);
+	cv::Mat_<double>& affine
+);
+cv::Mat_<double> doAffineTransform(
+	const cv::Mat_<double>& shape,
+	const cv::Mat_<double>& affine
+);
 
 //cv::Mat_<double> LoadGroundTruthShape(std::string& name);
 cv::Mat_<double> LoadGroundTruthShape(const char* name);
 
 void LoadImages(std::vector<cv::Mat_<uchar> >& images, std::vector<cv::Mat_<double> >& ground_truth_shapes,
-	std::vector<BoundingBox>& bboxes, std::string file_names);
+                std::vector<BoundingBox>& bboxes, std::string file_names);
 
 bool ShapeInRect(cv::Mat_<double>& ground_truth_shape, cv::Rect&);
 
@@ -81,8 +86,8 @@ std::vector<cv::Rect> DetectFaces(cv::Mat_<uchar>& image, cv::CascadeClassifier&
 
 double CalculateError(cv::Mat_<double>& ground_truth_shape, cv::Mat_<double>& predicted_shape);
 
-void DrawPredictImage(cv::Mat_<uchar>& image, cv::Mat_<double>& shapes);
+void DrawPredictImage(cv::Mat_<uchar>& image, cv::Mat_<double>& shape);
 
-BoundingBox GetBoundingBox(cv::Mat_<double>& shape, int width, int height);
+BoundingBox GetBoundingBox(cv::Mat_<double>& shape);
 
 #endif

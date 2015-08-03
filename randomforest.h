@@ -32,14 +32,14 @@ public:
 	std::vector<FeatureLocations> local_position_; // size = param_.local_features_num
 	std::vector<cv::Mat_<double> >* regression_targets_;
 
-	bool TrainForest(//std::vector<cv::Mat_<double> >& regression_targets, 
+	bool TrainForest(//std::vector<cv::Mat_<double> >& regression_targets,
 		const std::vector<cv::Mat_<uchar> >& images,
 		const std::vector<int>& augmented_images_index,
 		//const std::vector<cv::Mat_<double> >& augmented_ground_truth_shapes,
 		const std::vector<BoundingBox>& augmented_bboxes,
 		const std::vector<cv::Mat_<double> >& augmented_current_shapes,
-		const std::vector<cv::Mat_<double> >& rotations,
-		const std::vector<double>& scales);
+		const std::vector<cv::Mat_<double> >& affines
+	);
 	Node* BuildTree(std::set<int>& selected_indexes, cv::Mat_<int>& pixel_differences, std::vector<int>& images_indexes, int current_depth);
 	int FindSplitFeature(Node* node, std::set<int>& selected_indexes,
 		cv::Mat_<int>& pixel_differences, std::vector<int>& images_indexes, std::vector<int>& left_indexes, std::vector<int>& right_indexes);
