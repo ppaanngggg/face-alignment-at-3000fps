@@ -205,8 +205,8 @@ void LoadImages(std::vector<cv::Mat_<uchar> >& images,
 		//std::cout << "reading file: " << name << std::endl;
 		//std::cout << name << std::endl;
 
-        cv::Mat_<uchar> image = cv::imread(("./../helen/testset/" + name + ".jpg").c_str(), 0);
-        cv::Mat_<double> ground_truth_shape = LoadGroundTruthShape(("./../helen/testset/" + name + ".pts").c_str());
+        cv::Mat_<uchar> image = cv::imread(("./../helen/trainset/" + name + ".jpg").c_str(), 0);
+        cv::Mat_<double> ground_truth_shape = LoadGroundTruthShape(("./../helen/trainset/" + name + ".pts").c_str());
         BoundingBox bbox = GetBoundingBox(ground_truth_shape);
         images.push_back(image);
         ground_truth_shapes.push_back(ground_truth_shape);

@@ -31,7 +31,7 @@ void Test(const char* ModelName){
 	std::vector<cv::Mat_<uchar> > images;
 	std::vector<cv::Mat_<double> > ground_truth_shapes;
 	std::vector<BoundingBox> bboxes;
-	std::string file_names = "./../helen/testset/1.txt";
+	std::string file_names = "./../helen/trainset/1.txt";
 	LoadImages(images, ground_truth_shapes, bboxes, file_names);
 	// for (size_t i = 0; i < images.size(); i++) {
 	// 	cv::imshow("image", images[i]);
