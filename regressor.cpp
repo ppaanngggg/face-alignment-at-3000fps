@@ -76,15 +76,15 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 		for (int j = 0; j < shape_increaments.size(); j++){
 			cv::Mat(shape_increaments[j].col(0) * augmented_bboxes[j].width).copyTo(shape_increaments[j].col(0));
 			cv::Mat(shape_increaments[j].col(1) * augmented_bboxes[j].height).copyTo(shape_increaments[j].col(1));
-            
-            if(i == 0)
-                DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
-            
+
+            // if(i == 0)
+            //     DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
+
 			augmented_current_shapes[j] = shape_increaments[j] + augmented_current_shapes[j];
-            
-            if(i == 0)
-                DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
-        
+
+            // if(i == 0)
+            //     DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
+
 			augmented_bboxes[j] = GetBoundingBox(augmented_current_shapes[j]);
 			error += CalculateError(augmented_ground_truth_shapes[j], augmented_current_shapes[j]);
 		}
