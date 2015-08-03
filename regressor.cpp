@@ -113,7 +113,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 
 	// calculate the regression targets
 	std::cout << "calculate regression targets" << std::endl;
-    // #pragma omp parallel for
+    #pragma omp parallel for
 	for (int i = 0; i < augmented_current_shapes.size(); i++){
 		//turn mean_shape and current_shape to their center, used to compute affine
 		cv::Mat mean_shape_resize = ReProjection(params_.mean_shape_, augmented_bboxes[i]);
@@ -149,7 +149,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 
 	std::cout << "train forest of stage:" << stage_ << std::endl;
 	rd_forests_.resize(params_.landmarks_num_per_face_);
-    // #pragma omp parallel for
+    #pragma omp parallel for
 	for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
         std::cout << "landmark: " << i << std::endl;
 		rd_forests_[i] = RandomForest(params_, i, stage_, regression_targets);
@@ -173,7 +173,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 		std::cout<<"all_leaf_nodes :"<<rd_forests_[i].all_leaf_nodes_<<std::endl;
     }
 	//compute feature_binary_code for each augmented data
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < augmented_current_shapes.size(); ++i){
         int index = 1;
         int ind = 0;
@@ -264,7 +264,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
     for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
         targets[i] = new double[augmented_current_shapes.size()];
     }
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
 
         std::cout << "regress landmark " << i << std::endl;
@@ -292,7 +292,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 
     std::vector<cv::Mat_<double> > predict_regression_targets;
     predict_regression_targets.resize(augmented_current_shapes.size());
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < augmented_current_shapes.size(); i++){
         cv::Mat_<double> a(params_.landmarks_num_per_face_, 2, 0.0);
         for (int j = 0; j < params_.landmarks_num_per_face_; j++){
@@ -466,7 +466,7 @@ struct feature_node* Regressor::GetGlobalBinaryFeaturesMP(cv::Mat_<uchar>& image
 
     struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
     //int ind = 0;
-// #pragma omp parallel for
+#pragma omp parallel for
     for (int j = 0; j < params_.landmarks_num_per_face_; ++j)
     {
         for (int k = 0; k < params_.trees_num_per_forest_; ++k)
