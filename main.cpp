@@ -119,7 +119,7 @@ void Train(const char* ModelName){
 	LoadImages(images, ground_truth_shapes, bboxes, file_names);
 
 	Parameters params;
-    params.local_features_num_ = 10;
+    params.local_features_num_ = 1000;
 	params.landmarks_num_per_face_ = 68;
     params.regressor_stages_ = 4;
 	params.local_radius_by_stage_.push_back(0.4);
