@@ -2,12 +2,10 @@
 #include <time.h>
 #include <assert.h>
 //SYSTEM MACORS LISTS: http://sourceforge.net/p/predef/wiki/OperatingSystems/
-#ifdef _WIN32 // can be used under 32 and 64 bits both
-#include <direct.h>
-#elif __linux__
+
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif
+
 CascadeRegressor::CascadeRegressor(){
 
 }
@@ -313,53 +311,28 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 	return predict_regression_targets;
 }
 
-
-cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
-	cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& ground_truth_shape){
-
-	cv::Mat_<uchar> tmp;
-	image.copyTo(tmp);
-
-	for (int j = 0; j < current_shape.rows; j++){
-		cv::circle(tmp, cv::Point2f(current_shape(j, 0), current_shape(j, 1)), 2, (255));
-	}
-	cv::imshow("show image", tmp);
-	cv::waitKey(0);
-
-	for (int i = 0; i < params_.regressor_stages_; i++){
-
-		cv::Mat_<double> rotation;
-		double scale;
-		if(i==0){
-			getSimilarityTransform(ProjectShape(ground_truth_shape, bbox), params_.mean_shape_, rotation, scale);
-		}else{
-			getSimilarityTransform(ProjectShape(current_shape, bbox), params_.mean_shape_, rotation, scale);
-		}
-
-		cv::Mat_<double> shape_increaments = regressors_[i].Predict(image, current_shape, bbox, rotation, scale);
-		current_shape = shape_increaments + ProjectShape(current_shape, bbox);
-		current_shape = ReProjection(current_shape, bbox);
-		image.copyTo(tmp);
-		for (int j = 0; j < current_shape.rows; j++){
-			cv::circle(tmp, cv::Point2f(current_shape(j, 0), current_shape(j, 1)), 2, (255));
-		}
-		cv::imshow("show image", tmp);
-		cv::waitKey(0);
-	}
-	cv::Mat_<double> res = current_shape;
-	return res;
-}
-
 cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 	cv::Mat_<double>& current_shape, BoundingBox& bbox){
 
 	for (int i = 0; i < params_.regressor_stages_; i++){
-        cv::Mat_<double> rotation;
-		double scale;
-		getSimilarityTransform(ProjectShape(current_shape, bbox), params_.mean_shape_, rotation, scale);
-		cv::Mat_<double> shape_increaments = regressors_[i].Predict(image, current_shape, bbox, rotation, scale);
-		current_shape = shape_increaments + ProjectShape(current_shape, bbox);
-		current_shape = ReProjection(current_shape, bbox);
+		bbox = GetBoundingBox(current_shape);
+
+		cv::Mat mean_shape_resize = ReProjection(params_.mean_shape_, bbox);
+		cv::Mat tmp_mean_shape_resize(params_.mean_shape_.rows, 2, params_.mean_shape_.depth());
+		cv::Mat tmp_current_shape(params_.mean_shape_.rows, 2, params_.mean_shape_.depth());
+		cv::Mat(mean_shape_resize.col(0) - mean(mean_shape_resize.col(0))).copyTo(tmp_mean_shape_resize.col(0));
+		cv::Mat(mean_shape_resize.col(1) - mean(mean_shape_resize.col(1))).copyTo(tmp_mean_shape_resize.col(1));
+		cv::Mat(current_shape.col(0) - mean(current_shape.col(0))).copyTo(
+			tmp_current_shape.col(0));
+		cv::Mat(current_shape.col(1) - mean(current_shape.col(1))).copyTo(
+			tmp_current_shape.col(1));
+		cv::Mat_<double> affine;
+		getAffineTransform(tmp_mean_shape_resize, tmp_current_shape, affine);
+
+		cv::Mat_<double> shape_increaments = regressors_[i].Predict(image, current_shape, bbox, affine);
+		cv::Mat(shape_increaments.col(0) * bbox.width).copyTo(shape_increaments.col(0));
+		cv::Mat(shape_increaments.col(1) * bbox.height).copyTo(shape_increaments.col(1));
+		current_shape = shape_increaments + current_shape;
 	}
 	cv::Mat_<double> res = current_shape;
 	return res;
@@ -375,149 +348,8 @@ Regressor::~Regressor(){
 
 }
 
-struct feature_node* Regressor::GetGlobalBinaryFeaturesThread(cv::Mat_<uchar>& image,
-    cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale){
-    struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
-    tmp_binary_features = binary_features;
-    tmp_image = image;
-    tmp_current_shape = current_shape;
-    tmp_bbox = bbox;
-    tmp_rotation = rotation;
-    tmp_scale = scale;
-    cur_landmark.store(0);
-
-
-    int num_threads = 2;
-    std::thread t1, t2;
-    std::vector<std::thread> pool;
-    //struct timeval tt1, tt2;
-    //gettimeofday(&tt1, NULL);
-    for(int i = 0; i < num_threads; i++){
-        //t1 = std::thread(&Regressor::GetFeaThread, this);
-        pool.push_back(std::thread(&Regressor::GetFeaThread, this));
-    }
-    //gettimeofday(&tt2, NULL);
-    //std::cout << "threads: " << tt2.tv_sec - tt1.tv_sec + (tt2.tv_usec - tt1.tv_usec)/1000000.0 << std::endl;
-
-    for(int i = 0; i < num_threads; i++){
-        pool[i].join();
-    }
-
-    binary_features[params_.trees_num_per_forest_*params_.landmarks_num_per_face_].index = -1;
-    binary_features[params_.trees_num_per_forest_*params_.landmarks_num_per_face_].value = -1.0;
-
-    return binary_features;
-}
-
-void Regressor::GetFeaThread(){
-    int cur = -1;
-    while(1){
-        cur = cur_landmark.fetch_add(1);
-        if(cur >= params_.landmarks_num_per_face_){
-            return;
-        }
-        //std::cout << stage_ << ": " << cur << std::endl;
-        int ind = cur*params_.trees_num_per_forest_;
-        for (int k = 0; k < params_.trees_num_per_forest_; ++k)
-        {
-            Node* node = rd_forests_[cur].trees_[k];
-            while (!node->is_leaf_){
-                FeatureLocations& pos = node->feature_locations_;
-                double delta_x = tmp_rotation(0, 0)*pos.start.x + tmp_rotation(0, 1)*pos.start.y;
-                double delta_y = tmp_rotation(1, 0)*pos.start.x + tmp_rotation(1, 1)*pos.start.y;
-                delta_x = tmp_scale*delta_x*tmp_bbox.width / 2.0;
-                delta_y = tmp_scale*delta_y*tmp_bbox.height / 2.0;
-                int real_x = delta_x + tmp_current_shape(cur, 0);
-                int real_y = delta_y + tmp_current_shape(cur, 1);
-                real_x = std::max(0, std::min(real_x, tmp_image.cols - 1)); // which cols
-                real_y = std::max(0, std::min(real_y, tmp_image.rows - 1)); // which rows
-                int tmp = (int)tmp_image(real_y, real_x); //real_y at first
-
-                delta_x = tmp_rotation(0, 0)*pos.end.x + tmp_rotation(0, 1)*pos.end.y;
-                delta_y = tmp_rotation(1, 0)*pos.end.x + tmp_rotation(1, 1)*pos.end.y;
-                delta_x = tmp_scale*delta_x*tmp_bbox.width / 2.0;
-                delta_y = tmp_scale*delta_y*tmp_bbox.height / 2.0;
-                real_x = delta_x + tmp_current_shape(cur, 0);
-                real_y = delta_y + tmp_current_shape(cur, 1);
-                real_x = std::max(0, std::min(real_x, tmp_image.cols - 1)); // which cols
-                real_y = std::max(0, std::min(real_y, tmp_image.rows - 1)); // which rows
-                if ((tmp - (int)tmp_image(real_y, real_x)) < node->threshold_){
-                    node = node->left_child_;// go left
-                }
-                else{
-                    node = node->right_child_;// go right
-                }
-            }
-
-            //int ind = j*params_.trees_num_per_forest_ + k;
-            tmp_binary_features[ind].index = leaf_index_count[cur] + node->leaf_identity;//rd_forests_[j].GetBinaryFeatureIndex(k,image, bbox, current_shape, rotation, scale);
-            tmp_binary_features[ind].value = 1.0;
-            ind++;
-            //std::cout << binary_features[ind].index << " ";
-        }
-    }
-}
-
-struct feature_node* Regressor::GetGlobalBinaryFeaturesMP(cv::Mat_<uchar>& image,
-    cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale){
-    int index = 1;
-
-    struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
-    //int ind = 0;
-#pragma omp parallel for
-    for (int j = 0; j < params_.landmarks_num_per_face_; ++j)
-    {
-        for (int k = 0; k < params_.trees_num_per_forest_; ++k)
-        {
-            Node* node = rd_forests_[j].trees_[k];
-            while (!node->is_leaf_){
-                FeatureLocations& pos = node->feature_locations_;
-                double delta_x = rotation(0, 0)*pos.start.x + rotation(0, 1)*pos.start.y;
-                double delta_y = rotation(1, 0)*pos.start.x + rotation(1, 1)*pos.start.y;
-                delta_x = scale*delta_x*bbox.width / 2.0;
-                delta_y = scale*delta_y*bbox.height / 2.0;
-                int real_x = delta_x + current_shape(j, 0);
-                int real_y = delta_y + current_shape(j, 1);
-                real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-                real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-                int tmp = (int)image(real_y, real_x); //real_y at first
-
-                delta_x = rotation(0, 0)*pos.end.x + rotation(0, 1)*pos.end.y;
-                delta_y = rotation(1, 0)*pos.end.x + rotation(1, 1)*pos.end.y;
-                delta_x = scale*delta_x*bbox.width / 2.0;
-                delta_y = scale*delta_y*bbox.height / 2.0;
-                real_x = delta_x + current_shape(j, 0);
-                real_y = delta_y + current_shape(j, 1);
-                real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-                real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-                if ((tmp - (int)image(real_y, real_x)) < node->threshold_){
-                    node = node->left_child_;// go left
-                }
-                else{
-                    node = node->right_child_;// go right
-                }
-            }
-
-            //int ind = j*params_.trees_num_per_forest_ + k;
-            int ind = feature_node_index[j] + k;
-            binary_features[ind].index = leaf_index_count[j] + node->leaf_identity;
-            //binary_features[ind].index = index + node->leaf_identity;//rd_forests_[j].GetBinaryFeatureIndex(k,image, bbox, current_shape, rotation, scale);
-            binary_features[ind].value = 1.0;
-            //ind++;
-            //std::cout << binary_features[ind].index << " ";
-        }
-
-        //index += rd_forests_[j].all_leaf_nodes_;
-    }
-    //std::cout << "\n";
-    //std::cout << index << ":" << params_.trees_num_per_forest_*params_.landmarks_num_per_face_ << std::endl;
-    binary_features[params_.trees_num_per_forest_*params_.landmarks_num_per_face_].index = -1;
-    binary_features[params_.trees_num_per_forest_*params_.landmarks_num_per_face_].value = -1.0;
-    return binary_features;
-}
-
 struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
-    cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale){
+    cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& affine){
     int index = 1;
 
     struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
@@ -529,20 +361,21 @@ struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
             Node* node = rd_forests_[j].trees_[k];
             while (!node->is_leaf_){
                 FeatureLocations& pos = node->feature_locations_;
-                double delta_x = rotation(0, 0)*pos.start.x + rotation(0, 1)*pos.start.y;
-                double delta_y = rotation(1, 0)*pos.start.x + rotation(1, 1)*pos.start.y;
-                delta_x = scale*delta_x*bbox.width / 2.0;
-                delta_y = scale*delta_y*bbox.height / 2.0;
+				double delta_x = affine(0, 0)*pos.start.x + affine(1, 0)*pos.start.y + affine(2, 0);
+				double delta_y = affine(0, 1)*pos.start.x + affine(1, 1)*pos.start.y + affine(2, 1);
+				delta_x *= bbox.width;
+				delta_y *= bbox.height;
                 int real_x = delta_x + current_shape(j, 0);
                 int real_y = delta_y + current_shape(j, 1);
                 real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
                 real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
+//                std::cout<<real_x<<" "<<real_y<<std::endl;
                 int tmp = (int)image(real_y, real_x); //real_y at first
 
-                delta_x = rotation(0, 0)*pos.end.x + rotation(0, 1)*pos.end.y;
-                delta_y = rotation(1, 0)*pos.end.x + rotation(1, 1)*pos.end.y;
-                delta_x = scale*delta_x*bbox.width / 2.0;
-                delta_y = scale*delta_y*bbox.height / 2.0;
+				delta_x = affine(0, 0)*pos.end.x + affine(1, 0)*pos.end.y + affine(2, 0);
+				delta_y = affine(0, 1)*pos.end.x + affine(1, 1)*pos.end.y + affine(2, 1);
+				delta_x *= bbox.width;
+				delta_y *= bbox.height;
                 real_x = delta_x + current_shape(j, 0);
                 real_y = delta_y + current_shape(j, 1);
                 real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
@@ -574,12 +407,12 @@ struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
 }
 
 cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
-	cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale){
+	cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& affine){
 
 	cv::Mat_<double> predict_result(current_shape.rows, current_shape.cols, 0.0);
 
     //feature_node* binary_features = GetGlobalBinaryFeaturesThread(image, current_shape, bbox, rotation, scale);
-    feature_node* binary_features = GetGlobalBinaryFeatures(image, current_shape, bbox, rotation, scale);
+    feature_node* binary_features = GetGlobalBinaryFeatures(image, current_shape, bbox, affine);
 //    feature_node* tmp_binary_features = GetGlobalBinaryFeaturesMP(image, current_shape, bbox, rotation, scale);
 //    for (int i = 0; i < params_.trees_num_per_forest_*params_.landmarks_num_per_face_; i++){
 //        std::cout << binary_features[i].index << " ";
@@ -594,11 +427,9 @@ cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
         predict_result(i, 1) = predict(linear_model_y_[i], binary_features);
 	}
 
-	cv::Mat_<double> rot;
-	cv::transpose(rotation, rot);
     delete[] binary_features;
     //delete[] tmp_binary_features;
-	return scale*predict_result*rot;
+	return doAffineTransform(predict_result, affine);
 }
 
 void CascadeRegressor::LoadCascadeRegressor(std::string ModelName){
@@ -711,15 +542,13 @@ void Regressor::SaveRegressor(std::string ModelName, int stage){
     for (
          int i = 0; i < linear_model_x_.size(); i++){
         sprintf(buffer, "%s_%d", ModelName.c_str(), stage_);
-#ifdef _WIN32 // can be used under 32 and 64 bits
-        _mkdir(buffer);
-#elif __linux__
+
         struct stat st = {0};
         if (stat(buffer, &st) == -1) {
             mkdir(buffer, 0777);
         }
-#endif
-		//_mkdir(buffer);
+
+        //_mkdir(buffer);
         sprintf(buffer, "%s_%d/%d_linear_x.txt", ModelName.c_str(), stage_, i);
 		save_model(buffer, linear_model_x_[i]);
 

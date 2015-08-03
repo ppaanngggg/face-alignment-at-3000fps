@@ -31,85 +31,26 @@ void Test(const char* ModelName){
 	std::vector<cv::Mat_<uchar> > images;
 	std::vector<cv::Mat_<double> > ground_truth_shapes;
 	std::vector<BoundingBox> bboxes;
-	std::string file_names = "./../helen/trainset/bboxes.txt";
+	std::string file_names = "./../helen/testset/1.txt";
 	LoadImages(images, ground_truth_shapes, bboxes, file_names);
+	// for (size_t i = 0; i < images.size(); i++) {
+	// 	cv::imshow("image", images[i]);
+	// 	cv::waitKey();
+	// }
     struct timeval t1, t2;
     gettimeofday(&t1, NULL);
 	for (int i = 0; i < images.size(); i++){
 		cv::Mat_<double> current_shape = ReProjection(cas_load.params_.mean_shape_, bboxes[i]);
-        //struct timeval t1, t2;
         //gettimeofday(&t1, NULL);
         cv::Mat_<double> res = cas_load.Predict(images[i], current_shape, bboxes[i]);//, ground_truth_shapes[i]);
 
-        //cout << res << std::endl;
-        //cout << res - ground_truth_shapes[i] << std::endl;
-        //double err = CalculateError(grodund_truth_shapes[i], res);
-        //cout << "error: " << err << std::endl;
-
         DrawPredictedImage(images[i], res);
-		//if (i == 10) break;
 	}
     gettimeofday(&t2, NULL);
     double time_full = t2.tv_sec - t1.tv_sec + (t2.tv_usec - t1.tv_usec)/1000000.0;
     cout << "time full: " << time_full << " : " << time_full/images.size() << endl;
 	return;
 }
-
-
-void TestImage(const char* name, CascadeRegressor& rg){
-	std::string fn_haar = "./../haarcascade_frontalface_alt2.xml";
-	cv::CascadeClassifier haar_cascade;
-	bool yes = haar_cascade.load(fn_haar);
-	std::cout << "detector: " << yes << std::endl;
-	cv::Mat_<uchar> image = cv::imread(name, 0);
-		if (image.cols > 2000){
-			cv::resize(image, image, cv::Size(image.rows / 3, image.cols / 3), 0, 0, cv::INTER_LINEAR);
-			//ground_truth_shape /= 3.0;
-		}
-		else if (image.cols > 1400 && image.cols <= 2000){
-			cv::resize(image, image, cv::Size(image.rows / 2, image.cols / 2), 0, 0, cv::INTER_LINEAR);
-			//ground_truth_shape /= 2.0;
-		}
-    std::vector<cv::Rect> faces;
-
-    struct timeval t1, t2;
-    double timeuse;
-    gettimeofday(&t1, NULL);
-    haar_cascade.detectMultiScale(image, faces, 1.1, 2, 0, cv::Size(30, 30));
-    gettimeofday(&t2, NULL);
-    cout << "face detected " << t2.tv_sec - t1.tv_sec + (t2.tv_usec - t1.tv_usec)/1000000.0 << endl;
-    for (int i = 0; i < faces.size(); i++){
-        cv::Rect faceRec = faces[i];
-        BoundingBox bbox;
-        bbox.start_x = faceRec.x;
-        bbox.start_y = faceRec.y;
-        bbox.width = faceRec.width;
-        bbox.height = faceRec.height;
-        bbox.center_x = bbox.start_x + bbox.width / 2.0;
-        bbox.center_y = bbox.start_y + bbox.height / 2.0;
-        cv::Mat_<double> current_shape = ReProjection(rg.params_.mean_shape_, bbox);
-        //cv::Mat_<double> tmp = image.clone();
-        //DrawPredictedImage(tmp, current_shape);
-        gettimeofday(&t1, NULL);
-        cv::Mat_<double> res = rg.Predict(image, current_shape, bbox);//, ground_truth_shapes[i]);
-        gettimeofday(&t2, NULL);
-        cout << "time predict: " << t2.tv_sec - t1.tv_sec + (t2.tv_usec - t1.tv_usec)/1000000.0 << endl;
-        cv::rectangle(image, faceRec, (255), 1);
-        //cv::imshow("show image", image);
-        //cv::waitKey(0);
-        DrawPredictedImage(image, res);
-        break;
-    }
-	return;
-}
-
-void Test(const char* ModelName, const char* name){
-	CascadeRegressor cas_load;
-	cas_load.LoadCascadeRegressor(ModelName);
-	TestImage(name, cas_load);
-    return;
-}
-
 
 void Train(const char* ModelName){
 	std::vector<cv::Mat_<uchar> > images;
@@ -119,7 +60,7 @@ void Train(const char* ModelName){
 	LoadImages(images, ground_truth_shapes, bboxes, file_names);
 
 	Parameters params;
-    params.local_features_num_ = 1000;
+    params.local_features_num_ = 20;
 	params.landmarks_num_per_face_ = 68;
     params.regressor_stages_ = 4;
 	params.local_radius_by_stage_.push_back(0.4);
@@ -128,7 +69,7 @@ void Train(const char* ModelName){
 	params.local_radius_by_stage_.push_back(0.1);
     //params.local_radius_by_stage_.push_back(0.08);
     params.local_radius_by_stage_.push_back(0.05);
-    params.tree_depth_ = 4;
+    params.tree_depth_ = 3;
     params.trees_num_per_forest_ = 5;
     params.initial_guess_ = 1;
 
@@ -170,9 +111,6 @@ int main(int argc, char* argv[])
 			std::cout << "enter test\n";
             if (argc == 3){
                 Test(argv[2]);
-            }
-            else{
-                Test(argv[2], argv[3]);
             }
             return 0;
 		}

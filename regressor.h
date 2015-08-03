@@ -34,16 +34,17 @@ public:
 		const std::vector<cv::Mat_<double> >& augmented_current_shapes,
 		const Parameters& params,
 		const int stage);
-    struct feature_node* GetGlobalBinaryFeatures(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale);
-	cv::Mat_<double> Predict(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape, 
-		BoundingBox& bbox, cv::Mat_<double>& rotation, double scale);
+    struct feature_node* GetGlobalBinaryFeatures(
+		cv::Mat_<uchar>& image,
+		cv::Mat_<double>& current_shape,
+		BoundingBox& bbox,
+		cv::Mat_<double>& affine
+	);
+	cv::Mat_<double> Predict(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape,
+		BoundingBox& bbox, cv::Mat_<double>& affine);
 	void LoadRegressor(std::string ModelName, int stage);
 	void SaveRegressor(std::string ModelName, int stage);
     void ConstructLeafCount();
-    struct feature_node* GetGlobalBinaryFeaturesThread(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale);
-    struct feature_node* GetGlobalBinaryFeaturesMP(cv::Mat_<uchar>& image,
-        cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& rotation, double scale);
-    void GetFeaThread();
 };
 
 class CascadeRegressor {
@@ -51,7 +52,7 @@ public:
 	Parameters params_;
 	std::vector<cv::Mat_<uchar> > images_;
 	std::vector<cv::Mat_<double> > ground_truth_shapes_;
-	
+
     //std::vector<struct model*> linear_model_x_;
     //std::vector<struct model*> linear_model_y_;
     //std::vector<cv::Mat_<double> > current_shapes_;
@@ -65,7 +66,6 @@ public:
 		//const std::vector<cv::Mat_<double> >& current_shapes,
 		const std::vector<BoundingBox>& bboxes,
 		Parameters& params);
-	cv::Mat_<double> Predict(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& ground_truth_shape);
 	cv::Mat_<double> Predict(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape, BoundingBox& bbox);
 	void LoadCascadeRegressor(std::string ModelName);
 	void SaveCascadeRegressor(std::string ModelName);
