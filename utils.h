@@ -83,15 +83,19 @@ void LoadImages(
 		std::string file_names,
 		std::string set_name);
 
-bool ShapeInRect(cv::Mat_<double>& ground_truth_shape, cv::Rect&);
-
-std::vector<cv::Rect_<int> > DetectFaces(cv::Mat_<uchar>& image);
-std::vector<cv::Rect> DetectFaces(cv::Mat_<uchar>& image, cv::CascadeClassifier& classifier);
-
 double CalculateError(cv::Mat_<double>& ground_truth_shape, cv::Mat_<double>& predicted_shape);
 
 void DrawPredictImage(const cv::Mat_<uchar>& image, const cv::Mat_<double>& shape);
 
 BoundingBox GetBoundingBox(cv::Mat_<double>& shape);
+
+int ComputePixelDifferenct(
+                           const FeatureLocations &pos,
+                           const cv::Mat_<uchar> &image,
+                           const cv::Mat_<double> &shape,
+                           const BoundingBox &bbox,
+                           const int landmark,
+                           const cv::Mat_<double> &affine
+                           );
 
 #endif

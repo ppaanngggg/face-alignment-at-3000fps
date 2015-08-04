@@ -42,8 +42,8 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 ////            std::cout << temp<<std::endl;
 //            temp *= scale;
 //            std::cout << temp<<std::endl;
-            
-            
+
+
 			// //choose init shape randomly
 			// int index = 0;
 			// do {
@@ -52,7 +52,7 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 			//
 			// cv::Mat_<double> temp = ground_truth_shapes_[index];
 			// temp = ProjectShape(temp, bboxes_[index]);
-            
+
             temp = ReProjection(temp, bboxes_[i]);
             augmented_images_index.push_back(i);
             augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
@@ -87,8 +87,6 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 		std::cout << "update current shapes" << std::endl;
 		double error = 0.0;
 		for (int j = 0; j < shape_increaments.size(); j++){
-			cv::Mat(shape_increaments[j].col(0) * augmented_bboxes[j].width).copyTo(shape_increaments[j].col(0));
-			cv::Mat(shape_increaments[j].col(1) * augmented_bboxes[j].height).copyTo(shape_increaments[j].col(1));
 			//update current shape and current bbox
 			augmented_current_shapes[j] = shape_increaments[j] + augmented_current_shapes[j];
 			augmented_bboxes[j] = GetBoundingBox(augmented_current_shapes[j]);
@@ -119,8 +117,6 @@ cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
 		getAffineTransform(tmp_mean_shape_resize, tmp_current_shape, affine);
 
 		cv::Mat_<double> shape_increaments = regressors_[i].Predict(image, current_shape, bbox, affine);
-		cv::Mat(shape_increaments.col(0) * bbox.width).copyTo(shape_increaments.col(0));
-		cv::Mat(shape_increaments.col(1) * bbox.height).copyTo(shape_increaments.col(1));
 		current_shape = shape_increaments + current_shape;
 	}
 	cv::Mat_<double> res = current_shape;

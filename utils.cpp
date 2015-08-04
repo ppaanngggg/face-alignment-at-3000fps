@@ -160,35 +160,6 @@ cv::Mat_<double> LoadGroundTruthShape(const char* name){
 	return shape;
 }
 
-bool ShapeInRect(cv::Mat_<double>& shape, cv::Rect& ret){
-	double sum_x = 0.0, sum_y = 0.0;
-	double max_x = 0, min_x = 10000, max_y = 0, min_y = 10000;
-	for (int i = 0; i < shape.rows; i++){
-		if (shape(i, 0)>max_x) max_x = shape(i, 0);
-		if (shape(i, 0)<min_x) min_x = shape(i, 0);
-		if (shape(i, 1)>max_y) max_y = shape(i, 1);
-		if (shape(i, 1)<min_y) min_y = shape(i, 1);
-
-		sum_x += shape(i, 0);
-		sum_y += shape(i, 1);
-	}
-	sum_x /= shape.rows;
-	sum_y /= shape.rows;
-
-	if ((max_x - min_x) > ret.width * 1.5) return false;
-	if ((max_y - min_y) > ret.height * 1.5) return false;
-	if (std::abs(sum_x - (ret.x + ret.width / 2.0)) > ret.width / 2.0) return false;
-	if (std::abs(sum_y - (ret.y + ret.height / 2.0)) > ret.height / 2.0) return false;
-	return true;
-}
-
-std::vector<cv::Rect> DetectFaces(cv::Mat_<uchar>& image, cv::CascadeClassifier& classifier){
-	std::vector<cv::Rect_<int> > faces;
-	classifier.detectMultiScale(image, faces, 1.1, 2, 0, cv::Size(30, 30));
-	return faces;
-}
-
-
 void LoadImages(std::vector<cv::Mat_<uchar> >& images,
 		std::vector<cv::Mat_<double> >& ground_truth_shapes,
 		std::vector<BoundingBox>& bboxes,
@@ -217,9 +188,9 @@ void LoadImages(std::vector<cv::Mat_<uchar> >& images,
 		//    DrawPredictImage(image, ground_truth_shape);
 
 		count++;
-		if (count%100 == 0){
+		if (count%200 == 0){
 			std::cout << count << " images loaded\n";
-//            return;
+            return;
 		}
 	}
 	std::cout << "get " << bboxes.size() << " faces\n";
@@ -269,4 +240,42 @@ BoundingBox GetBoundingBox(cv::Mat_<double>& shape)
 	bbox.center_y = bbox.start_y + bbox.height / 2.;
 
 	return bbox;
+}
+
+int ComputePixelDifferenct(
+                           const FeatureLocations &pos,
+                           const cv::Mat_<uchar> &image,
+                           const cv::Mat_<double> &shape,
+                           const BoundingBox &bbox,
+                           const int landmark,
+                           const cv::Mat_<double> &affine
+                           )
+{
+    //get first point's pixel
+    double delta_x = pos.start.x;
+    double delta_y = pos.start.y;
+    delta_x *= bbox.width;
+    delta_y *= bbox.height;
+    delta_x = affine(0, 0)*delta_x + affine(1, 0)*delta_y + affine(2, 0);
+    delta_y = affine(0, 1)*delta_x + affine(1, 1)*delta_y + affine(2, 1);
+    int real_x = delta_x + shape(landmark, 0);
+    int real_y = delta_y + shape(landmark, 1);
+    real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
+    real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
+    int tmp = (int)image(real_y, real_x); //real_y at first
+    
+    //           cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
+    //get second point's pixel
+    delta_x = pos.end.x;
+    delta_y = pos.end.y;
+    delta_x *= bbox.width;
+    delta_y *= bbox.height;
+    delta_x = affine(0, 0)*delta_x + affine(1, 0)*delta_y + affine(2, 0);
+    delta_y = affine(0, 1)*delta_x + affine(1, 1)*delta_y + affine(2, 1);
+    real_x = delta_x + shape(landmark, 0);
+    real_y = delta_y + shape(landmark, 1);
+    real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
+    real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
+    
+    return tmp - (int)image(real_y, real_x);
 }

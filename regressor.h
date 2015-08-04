@@ -37,10 +37,10 @@ public:
 		const Parameters& params,
 		const int stage);
     struct feature_node* GetGlobalBinaryFeatures(
-		cv::Mat_<uchar>& image,
-		cv::Mat_<double>& current_shape,
-		BoundingBox& bbox,
-		cv::Mat_<double>& affine
+		const cv::Mat_<uchar>& image,
+		const cv::Mat_<double>& current_shape,
+		const BoundingBox& bbox,
+		const cv::Mat_<double>& affine
 	);
 	cv::Mat_<double> Predict(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape,
 		BoundingBox& bbox, cv::Mat_<double>& affine);

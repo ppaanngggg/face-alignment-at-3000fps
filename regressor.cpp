@@ -48,10 +48,10 @@ std::vector<cv::Mat_<double> > Regressor::Train(
 
 		//compute regression_target and transform it into union
 		cv::Mat regression_target = augmented_ground_truth_shapes[i] - augmented_current_shapes[i];
-		cv::Mat(regression_target.col(0) / augmented_bboxes[i].width).copyTo(regression_target.col(0));
-		cv::Mat(regression_target.col(1) / augmented_bboxes[i].height).copyTo(regression_target.col(1));
 		// std::cout<<"regression_target :"<<regression_target<<std::endl;
 		regression_target = doAffineTransform(regression_target, affine);
+		cv::Mat(regression_target.col(0) / augmented_bboxes[i].width).copyTo(regression_target.col(0));
+		cv::Mat(regression_target.col(1) / augmented_bboxes[i].height).copyTo(regression_target.col(1));
 		regression_targets[i] = regression_target;
 		// std::cout<<"regression_target :"<<regression_target<<std::endl;
 		// std::cout<<"affine matrix :"<<affine<<std::endl;
@@ -80,82 +80,21 @@ std::vector<cv::Mat_<double> > Regressor::Train(
 	//build sparse feature_binary_code
 	struct feature_node **global_binary_features;
 	global_binary_features = new struct feature_node* [augmented_current_shapes.size()];
-	for(int i = 0; i < augmented_current_shapes.size(); ++i){
-		global_binary_features[i] = new feature_node[
-			params_.trees_num_per_forest_ * params_.landmarks_num_per_face_ + 1
-			];
-	}
+//	for(int i = 0; i < augmented_current_shapes.size(); ++i){
+//		global_binary_features[i] = new feature_node[
+//			params_.trees_num_per_forest_ * params_.landmarks_num_per_face_ + 1
+//			];
+//	}
 	//compute feature_binary_code for each augmented data
 	#pragma omp parallel for
 	for (int i = 0; i < augmented_current_shapes.size(); ++i){
-		int index = 1;
-		int ind = 0;
 		//get info of [i]th augmented data
 		const cv::Mat_<double>& affine = affines[i];
 		const cv::Mat_<uchar>& image = images[augmented_images_index[i]];
 		const BoundingBox& bbox = augmented_bboxes[i];
 		const cv::Mat_<double>& current_shape = augmented_current_shapes[i];
 
-		// cv::Mat tmp_image;
-		// cv::cvtColor(image, tmp_image, cv::COLOR_GRAY2BGR);
-
-		//for each landmark and its each trees, compute binary code
-		for (int j = 0; j < params_.landmarks_num_per_face_; ++j){
-			for (int k = 0; k < params_.trees_num_per_forest_; ++k){
-				//pick [j]th landmark and travel [k]th tree
-				Node* node = rd_forests_[j].trees_[k];
-				while (!node->is_leaf_){
-
-					FeatureLocations& pos = node->feature_locations_;
-					double delta_x = affine(0, 0)*pos.start.x + affine(1, 0)*pos.start.y + affine(2, 0);
-					double delta_y = affine(0, 1)*pos.start.x + affine(1, 1)*pos.start.y + affine(2, 1);
-					delta_x *= bbox.width;
-					delta_y *= bbox.height;
-					int real_x = delta_x + current_shape(j, 0);
-					int real_y = delta_y + current_shape(j, 1);
-					real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-					real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-					int tmp = (int)image(real_y, real_x); //real_y at first
-
-					// cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
-
-					delta_x = affine(0, 0)*pos.end.x + affine(1, 0)*pos.end.y + affine(2, 0);
-					delta_y = affine(0, 1)*pos.end.x + affine(1, 1)*pos.end.y + affine(2, 1);
-					delta_x *= augmented_bboxes[i].width;
-					delta_y *= augmented_bboxes[i].height;
-					real_x = delta_x + current_shape(j, 0);
-					real_y = delta_y + current_shape(j, 1);
-					real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-					real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-
-					// cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
-
-					if ((tmp - (int)image(real_y, real_x)) < node->threshold_){
-						node = node->left_child_;// go left
-					}
-					else{
-						node = node->right_child_;// go right
-					}
-				}
-				global_binary_features[i][ind].index = index + node->leaf_identity;
-				global_binary_features[i][ind].value = 1.0;
-				ind++;
-				//std::cout << global_binary_features[i][ind].index << " ";
-			}
-			index += rd_forests_[j].all_leaf_nodes_;
-		}
-
-		// for (int j = 0; j < augmented_current_shapes[i].rows; j++){
-		//    cv::circle(tmp_image, cv::Point2f(augmented_current_shapes[i](j, 0), augmented_current_shapes[i](j, 1)), 2, cv::Scalar(255 ,0,0));
-		// }
-		// cv::imwrite("tmp_image_"+std::to_string(i)+".jpg", tmp_image);
-		// cv::waitKey();
-
-		if (i%500 == 0 && i > 0){
-			std::cout << "\textracted " << i << " images" << std::endl;
-		}
-		global_binary_features[i][params_.trees_num_per_forest_*params_.landmarks_num_per_face_].index = -1;
-		global_binary_features[i][params_.trees_num_per_forest_*params_.landmarks_num_per_face_].value = -1.0;
+        global_binary_features[i] = GetGlobalBinaryFeatures(image, current_shape, bbox, affine);
 	}
 	//count total num of features
 	int num_feature = 0;
@@ -215,6 +154,8 @@ std::vector<cv::Mat_<double> > Regressor::Train(
 			a(j, 0) = predict(linear_model_x_[j], global_binary_features[i]);
 			a(j, 1) = predict(linear_model_y_[j], global_binary_features[i]);
 		}
+		cv::Mat(a.col(0) * augmented_bboxes[i].width).copyTo(a.col(0));
+		cv::Mat(a.col(1) * augmented_bboxes[i].height).copyTo(a.col(1));
 		predict_regression_targets[i] = doAffineTransform(a, affines[i]);
 		if (i%500 == 0 && i > 0){
 			std::cout << "\tpredict " << i << " images" << std::endl;
@@ -238,8 +179,8 @@ Regressor::~Regressor(){
 
 }
 
-struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
-		cv::Mat_<double>& current_shape, BoundingBox& bbox, cv::Mat_<double>& affine){
+struct feature_node* Regressor::GetGlobalBinaryFeatures(const cv::Mat_<uchar>& image,
+		const cv::Mat_<double>& current_shape, const BoundingBox& bbox, const cv::Mat_<double>& affine){
 	int index = 1;
 
 	struct feature_node* binary_features = new feature_node[params_.trees_num_per_forest_*params_.landmarks_num_per_face_+1];
@@ -251,26 +192,8 @@ struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
 			Node* node = rd_forests_[j].trees_[k];
 			while (!node->is_leaf_){
 				FeatureLocations& pos = node->feature_locations_;
-				double delta_x = affine(0, 0)*pos.start.x + affine(1, 0)*pos.start.y + affine(2, 0);
-				double delta_y = affine(0, 1)*pos.start.x + affine(1, 1)*pos.start.y + affine(2, 1);
-				delta_x *= bbox.width;
-				delta_y *= bbox.height;
-				int real_x = delta_x + current_shape(j, 0);
-				int real_y = delta_y + current_shape(j, 1);
-				real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-				real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-				//                std::cout<<real_x<<" "<<real_y<<std::endl;
-				int tmp = (int)image(real_y, real_x); //real_y at first
-
-				delta_x = affine(0, 0)*pos.end.x + affine(1, 0)*pos.end.y + affine(2, 0);
-				delta_y = affine(0, 1)*pos.end.x + affine(1, 1)*pos.end.y + affine(2, 1);
-				delta_x *= bbox.width;
-				delta_y *= bbox.height;
-				real_x = delta_x + current_shape(j, 0);
-				real_y = delta_y + current_shape(j, 1);
-				real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-				real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-				if ((tmp - (int)image(real_y, real_x)) < node->threshold_){
+                int pixel_difference = ComputePixelDifferenct(pos, image, current_shape, bbox, j, affine);
+				if (pixel_difference < node->threshold_){
 					node = node->left_child_;// go left
 				}
 				else{
@@ -310,6 +233,8 @@ cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
 
 	delete[] binary_features;
 	//delete[] tmp_binary_features;
+	cv::Mat(predict_result.col(0) * bbox.width).copyTo(predict_result.col(0));
+	cv::Mat(predict_result.col(1) * bbox.height).copyTo(predict_result.col(1));
 	return doAffineTransform(predict_result, affine);
 }
 

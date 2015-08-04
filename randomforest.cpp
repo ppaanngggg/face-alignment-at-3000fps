@@ -63,41 +63,29 @@ bool RandomForest::TrainForest(
 	for (int i = 0; i < augmented_images_index.size(); i++){
 
 		cv::Mat_<double> affine = affines[i];
-    //    cv::Mat tmp_image;
-    //    cv::cvtColor(images[augmented_images_index[i]], tmp_image, cv::COLOR_GRAY2BGR);
+
+//        cv::Mat tmp_image;
+//        cv::cvtColor(images[augmented_images_index[i]], tmp_image, cv::COLOR_GRAY2BGR);
 
 		for (int j = 0; j < local_features_num_; j++){
 			FeatureLocations pos = local_position_[j];
-			//get first point's pixel
-			double delta_x = affine(0, 0)*pos.start.x + affine(1, 0)*pos.start.y + affine(2, 0);
-			double delta_y = affine(0, 1)*pos.start.x + affine(1, 1)*pos.start.y + affine(2, 1);
-			delta_x *= augmented_bboxes[i].width;
-			delta_y *= augmented_bboxes[i].height;
-			int real_x = delta_x + augmented_current_shapes[i](landmark_index_, 0);
-			int real_y = delta_y + augmented_current_shapes[i](landmark_index_, 1);
-			real_x = std::max(0, std::min(real_x, images[augmented_images_index[i]].cols - 1)); // which cols
-			real_y = std::max(0, std::min(real_y, images[augmented_images_index[i]].rows - 1)); // which rows
-			int tmp = (int)images[augmented_images_index[i]](real_y, real_x); //real_y at first
 
-        //    cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
-			//get second point's pixel
-			delta_x = affine(0, 0)*pos.end.x + affine(1, 0)*pos.end.y + affine(2, 0);
-			delta_y = affine(0, 1)*pos.end.x + affine(1, 1)*pos.end.y + affine(2, 1);
-			delta_x *= augmented_bboxes[i].width;
-			delta_y *= augmented_bboxes[i].height;
-			real_x = delta_x + augmented_current_shapes[i](landmark_index_, 0);
-			real_y = delta_y + augmented_current_shapes[i](landmark_index_, 1);
-			real_x = std::max(0, std::min(real_x, images[augmented_images_index[i]].cols - 1)); // which cols
-			real_y = std::max(0, std::min(real_y, images[augmented_images_index[i]].rows - 1)); // which rows
-			pixel_differences(j, i) = tmp - (int)images[augmented_images_index[i]](real_y, real_x);
+            pixel_differences(j, i) = ComputePixelDifferenct(
+				pos,
+				images[augmented_images_index[i]],
+				augmented_current_shapes[i],
+				augmented_bboxes[i],
+				landmark_index_,
+				affine
+			);
 
-        //    cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
+//           cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
 		}
-    //    for (int j = 0; j < augmented_current_shapes[i].rows; j++){
-    //        cv::circle(tmp_image, cv::Point2f(augmented_current_shapes[i](j, 0), augmented_current_shapes[i](j, 1)), 2, cv::Scalar(255 ,0,0));
-    //    }
-    //    cv::imshow("tmp_image", tmp_image);
-    //    cv::waitKey();
+//       for (int j = 0; j < augmented_current_shapes[i].rows; j++){
+//           cv::circle(tmp_image, cv::Point2f(augmented_current_shapes[i](j, 0), augmented_current_shapes[i](j, 1)), 2, cv::Scalar(255 ,0,0));
+//       }
+//       cv::imshow("tmp_image", tmp_image);
+//       cv::waitKey();
 	}
 
 	// std::cout << pixel_differences << std::endl;
