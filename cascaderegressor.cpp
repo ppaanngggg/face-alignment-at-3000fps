@@ -30,20 +30,35 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 	for (int i = 0; i < images_.size(); i++){
 		for (int j = 0; j < params_.initial_guess_; j++)
 		{
-			//choose init shape randomly
-			int index = 0;
-			do {
-				index = random_generator.uniform(0, images_.size());
-			}while(index == i);
-
-			cv::Mat_<double> temp = ground_truth_shapes_[index];
-			temp = ProjectShape(temp, bboxes_[index]);
-			temp = ReProjection(temp, bboxes_[i]);
-			augmented_images_index.push_back(i);
-			augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
-			augmented_bboxes.push_back(GetBoundingBox(temp));
-			augmented_current_shapes.push_back(temp);
-			DrawPredictImage(images[i], temp);
+            double angle = double(random_generator) - 0.5;
+            cv::Mat_<double> rotation(2, 2);
+            rotation(0, 0) = std::cos(angle); rotation(0, 1) = std::sin(angle);
+            rotation(1, 0) = - std::sin(angle); rotation(1, 1) = std::cos(angle);
+            cv::Mat_<double> temp = params_.mean_shape_ * rotation;
+//            std::cout << temp<<std::endl;
+//            cv::Mat_<double> scale(2, 2);
+//            scale(0, 0) = double(random_generator) * 0.2 + 0.9; scale(0, 1) = 0;
+//            scale(1, 0) = 0; scale(1, 1) = double(random_generator) * 0.2 + 0.9;
+////            std::cout << temp<<std::endl;
+//            temp *= scale;
+//            std::cout << temp<<std::endl;
+            
+            
+			// //choose init shape randomly
+			// int index = 0;
+			// do {
+			// 	index = random_generator.uniform(0, images_.size());
+			// }while(index == i);
+			//
+			// cv::Mat_<double> temp = ground_truth_shapes_[index];
+			// temp = ProjectShape(temp, bboxes_[index]);
+            
+            temp = ReProjection(temp, bboxes_[i]);
+            augmented_images_index.push_back(i);
+            augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
+            augmented_bboxes.push_back(GetBoundingBox(temp));
+            augmented_current_shapes.push_back(temp);
+            // DrawPredictImage(images[i], temp);
 		}
 		//choose mean shape for init
 		cv::Mat_<double> augmented_mean_shape = ReProjection(params_.mean_shape_, bboxes_[i]);

@@ -84,7 +84,7 @@ void Train(const char* ModelName)
 	Parameters params;
 	params.local_features_num_ = 100;
 	params.landmarks_num_per_face_ = 68;
-	params.regressor_stages_ = 5;
+	params.regressor_stages_ = 4;
 	params.local_radius_by_stage_.push_back(0.4);
 	params.local_radius_by_stage_.push_back(0.3);
 	params.local_radius_by_stage_.push_back(0.2);
@@ -93,7 +93,7 @@ void Train(const char* ModelName)
 	params.local_radius_by_stage_.push_back(0.05);
 	params.tree_depth_ = 3;
 	params.trees_num_per_forest_ = 4;
-	params.initial_guess_ = 5;
+	params.initial_guess_ = 1;
 
 	params.mean_shape_ = GetMeanShape(ground_truth_shapes, bboxes);
 	CascadeRegressor cas_reg;

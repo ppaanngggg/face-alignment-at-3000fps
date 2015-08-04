@@ -281,7 +281,7 @@ struct feature_node* Regressor::GetGlobalBinaryFeatures(cv::Mat_<uchar>& image,
 			//int ind = j*params_.trees_num_per_forest_ + k;
 			//int ind = feature_node_index[j] + k;
 			//binary_features[ind].index = leaf_index_count[j] + node->leaf_identity;
-			binary_features[ind].index = index + node->leaf_identity;//rd_forests_[j].GetBinaryFeatureIndex(k,image, bbox, current_shape, rotation, scale);
+			binary_features[ind].index = index + node->leaf_identity;
 			binary_features[ind].value = 1.0;
 			ind++;
 			//std::cout << binary_features[ind].index << " ";
@@ -301,17 +301,8 @@ cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
 
 	cv::Mat_<double> predict_result(current_shape.rows, current_shape.cols, 0.0);
 
-	//feature_node* binary_features = GetGlobalBinaryFeaturesThread(image, current_shape, bbox, rotation, scale);
 	feature_node* binary_features = GetGlobalBinaryFeatures(image, current_shape, bbox, affine);
-	//    feature_node* tmp_binary_features = GetGlobalBinaryFeaturesMP(image, current_shape, bbox, rotation, scale);
-	//    for (int i = 0; i < params_.trees_num_per_forest_*params_.landmarks_num_per_face_; i++){
-	//        std::cout << binary_features[i].index << " ";
-	//    }
-	//    std::cout << "ha\n";
-	//    for (int i = 0; i < params_.trees_num_per_forest_*params_.landmarks_num_per_face_; i++){
-	//        std::cout << tmp_binary_features[i].index << " ";
-	//    }
-	//    std::cout << "ha2\n";
+
 	for (int i = 0; i < current_shape.rows; i++){
 		predict_result(i, 0) = predict(linear_model_x_[i], binary_features);
 		predict_result(i, 1) = predict(linear_model_y_[i], binary_features);
@@ -321,8 +312,6 @@ cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
 	//delete[] tmp_binary_features;
 	return doAffineTransform(predict_result, affine);
 }
-
-
 
 void Regressor::LoadRegressor(std::string ModelName, int stage){
 	char buffer[50];

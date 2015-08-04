@@ -217,9 +217,9 @@ void LoadImages(std::vector<cv::Mat_<uchar> >& images,
 		//    DrawPredictImage(image, ground_truth_shape);
 
 		count++;
-		if (count%1000 == 0){
+		if (count%100 == 0){
 			std::cout << count << " images loaded\n";
-            return;
+//            return;
 		}
 	}
 	std::cout << "get " << bboxes.size() << " faces\n";
