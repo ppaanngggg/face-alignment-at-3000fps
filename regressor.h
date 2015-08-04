@@ -7,8 +7,10 @@
 
 class Regressor {
 public:
+	//training stage and params
 	int stage_;
 	Parameters params_;
+	//local random forest and global regression for each landmark
 	std::vector<RandomForest> rd_forests_;
     std::vector<struct model*> linear_model_x_;
     std::vector<struct model*> linear_model_y_;
@@ -45,31 +47,6 @@ public:
 	void LoadRegressor(std::string ModelName, int stage);
 	void SaveRegressor(std::string ModelName, int stage);
     void ConstructLeafCount();
-};
-
-class CascadeRegressor {
-public:
-	Parameters params_;
-	std::vector<cv::Mat_<uchar> > images_;
-	std::vector<cv::Mat_<double> > ground_truth_shapes_;
-
-    //std::vector<struct model*> linear_model_x_;
-    //std::vector<struct model*> linear_model_y_;
-    //std::vector<cv::Mat_<double> > current_shapes_;
-	std::vector<BoundingBox> bboxes_;
-	//cv::Mat_<double> mean_shape_;
-	std::vector<Regressor> regressors_;
-public:
-	CascadeRegressor();
-	void Train(const std::vector<cv::Mat_<uchar> >& images,
-		const std::vector<cv::Mat_<double> >& ground_truth_shapes,
-		//const std::vector<cv::Mat_<double> >& current_shapes,
-		const std::vector<BoundingBox>& bboxes,
-		Parameters& params);
-	cv::Mat_<double> Predict(cv::Mat_<uchar>& image, cv::Mat_<double>& current_shape, BoundingBox& bbox);
-	void LoadCascadeRegressor(std::string ModelName);
-	void SaveCascadeRegressor(std::string ModelName);
-
 };
 
 #endif

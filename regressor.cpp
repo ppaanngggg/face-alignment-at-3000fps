@@ -6,98 +6,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-CascadeRegressor::CascadeRegressor(){
-
-}
-
-void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
-		const std::vector<cv::Mat_<double> >& ground_truth_shapes,
-		const std::vector<BoundingBox>& bboxes,
-		Parameters& params){
-
-	std::cout << "Start training..." << std::endl;
-	images_ = images;
-	params_ = params;
-	bboxes_ = bboxes;
-	ground_truth_shapes_ = ground_truth_shapes;
-
-	std::vector<int> augmented_images_index; // just index in images_
-	std::vector<BoundingBox> augmented_bboxes;
-	std::vector<cv::Mat_<double> > augmented_ground_truth_shapes;
-	std::vector<cv::Mat_<double> > augmented_current_shapes; //
-
-	time_t current_time;
-	current_time = time(0);
-	//cv::RNG *random_generator = new cv::RNG();
-	std::cout << "augment data sets" << std::endl;
-	cv::RNG random_generator(current_time);
-	for (int i = 0; i < images_.size(); i++){
-		for (int j = 0; j < params_.initial_guess_; j++)
-		{
-			int index = 0;
-			do {
-				index = random_generator.uniform(0, images_.size());
-			}while(index == i);
-
-			cv::Mat_<double> temp = ground_truth_shapes_[index];
-			temp = ProjectShape(temp, bboxes_[index]);
-			temp = ReProjection(temp, bboxes_[i]);
-			augmented_images_index.push_back(i);
-			augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
-			augmented_bboxes.push_back(GetBoundingBox(temp));
-			augmented_current_shapes.push_back(temp);
-		}
-		cv::Mat_<double> augmented_mean_shape = ReProjection(params_.mean_shape_, bboxes_[i]);
-		augmented_images_index.push_back(i);
-		augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
-		augmented_bboxes.push_back(GetBoundingBox(augmented_mean_shape));
-		augmented_current_shapes.push_back(augmented_mean_shape);
-	}
-
-	std::cout << "augmented size: " << augmented_current_shapes.size() << std::endl;
-
-
-	std::vector<cv::Mat_<double> > shape_increaments;
-
-	regressors_.resize(params_.regressor_stages_);
-	for (int i = 0; i < params_.regressor_stages_; i++){
-		std::cout << "training stage: " << i << " of " << params_.regressor_stages_ << std::endl;
-		shape_increaments = regressors_[i].Train(images_,
-				augmented_images_index,
-				augmented_ground_truth_shapes,
-				augmented_bboxes,
-				augmented_current_shapes,
-				params_,
-				i);
-		std::cout << "update current shapes" << std::endl;
-		double error = 0.0;
-		for (int j = 0; j < shape_increaments.size(); j++){
-			cv::Mat(shape_increaments[j].col(0) * augmented_bboxes[j].width).copyTo(shape_increaments[j].col(0));
-			cv::Mat(shape_increaments[j].col(1) * augmented_bboxes[j].height).copyTo(shape_increaments[j].col(1));
-
-			// if(i == 0)
-			//     DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
-
-			augmented_current_shapes[j] = shape_increaments[j] + augmented_current_shapes[j];
-
-			// if(i == 0)
-			//     DrawPredictImage(images_[augmented_images_index[j]], augmented_current_shapes[j]);
-
-			augmented_bboxes[j] = GetBoundingBox(augmented_current_shapes[j]);
-			error += CalculateError(augmented_ground_truth_shapes[j], augmented_current_shapes[j]);
-		}
-
-		std::cout << "regression error: " <<  error << ": " << error/shape_increaments.size() << std::endl;
-	}
-}
-
-std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar> >& images,
-		const std::vector<int>& augmented_images_index,
-		const std::vector<cv::Mat_<double> >& augmented_ground_truth_shapes,
-		const std::vector<BoundingBox>& augmented_bboxes,
-		const std::vector<cv::Mat_<double> >& augmented_current_shapes,
-		const Parameters& params,
-		const int stage)
+std::vector<cv::Mat_<double> > Regressor::Train(
+	const std::vector<cv::Mat_<uchar> >& images,
+	const std::vector<int>& augmented_images_index,
+	const std::vector<cv::Mat_<double> >& augmented_ground_truth_shapes,
+	const std::vector<BoundingBox>& augmented_bboxes,
+	const std::vector<cv::Mat_<double> >& augmented_current_shapes,
+	const Parameters& params,
+	const int stage
+)
 {
 
 	stage_ = stage;
@@ -114,8 +31,8 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 	for (int i = 0; i < augmented_current_shapes.size(); i++){
 		//turn mean_shape and current_shape to their center, used to compute affine
 		cv::Mat mean_shape_resize = ReProjection(params_.mean_shape_, augmented_bboxes[i]);
-		cv::Mat tmp_mean_shape_resize(params.mean_shape_.rows, 2, params.mean_shape_.depth());
-		cv::Mat tmp_current_shape(params.mean_shape_.rows, 2, params.mean_shape_.depth());
+		cv::Mat tmp_mean_shape_resize(params.mean_shape_.rows, 2, params.mean_shape_.depth());	//alloc
+		cv::Mat tmp_current_shape(params.mean_shape_.rows, 2, params.mean_shape_.depth());		//alloc
 		cv::Mat(mean_shape_resize.col(0) - mean(mean_shape_resize.col(0))).copyTo(tmp_mean_shape_resize.col(0));
 		cv::Mat(mean_shape_resize.col(1) - mean(mean_shape_resize.col(1))).copyTo(tmp_mean_shape_resize.col(1));
 		cv::Mat(augmented_current_shapes[i].col(0) - mean(augmented_current_shapes[i].col(0))).copyTo(
@@ -148,12 +65,17 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 	rd_forests_.resize(params_.landmarks_num_per_face_);
 	#pragma omp parallel for
 	for (int i = 0; i < params_.landmarks_num_per_face_; ++i){
-		std::cout << "landmark: " << i << std::endl;
+		std::cout << "\tlandmark: " << i << std::endl;
 		rd_forests_[i] = RandomForest(params_, i, stage_, regression_targets);
 		rd_forests_[i].TrainForest(
-				images,augmented_images_index, augmented_bboxes, augmented_current_shapes, affines
-				);
+			images,
+			augmented_images_index,
+			augmented_bboxes,
+			augmented_current_shapes,
+			affines
+		);
 	}
+
 	std::cout << "Get Global Binary Features" << std::endl;
 	//build sparse feature_binary_code
 	struct feature_node **global_binary_features;
@@ -162,12 +84,6 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 		global_binary_features[i] = new feature_node[
 			params_.trees_num_per_forest_ * params_.landmarks_num_per_face_ + 1
 			];
-	}
-	//count total num of features
-	int num_feature = 0;
-	for (int i=0; i < params_.landmarks_num_per_face_; ++i){
-		num_feature += rd_forests_[i].all_leaf_nodes_;
-		std::cout<<"all_leaf_nodes :"<<rd_forests_[i].all_leaf_nodes_<<std::endl;
 	}
 	//compute feature_binary_code for each augmented data
 	#pragma omp parallel for
@@ -236,19 +152,25 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 		// cv::waitKey();
 
 		if (i%500 == 0 && i > 0){
-			std::cout << "extracted " << i << " images" << std::endl;
+			std::cout << "\textracted " << i << " images" << std::endl;
 		}
 		global_binary_features[i][params_.trees_num_per_forest_*params_.landmarks_num_per_face_].index = -1;
 		global_binary_features[i][params_.trees_num_per_forest_*params_.landmarks_num_per_face_].value = -1.0;
 	}
-	std::cout << "\n";
-
+	//count total num of features
+	int num_feature = 0;
+	for (int i=0; i < params_.landmarks_num_per_face_; ++i){
+		num_feature += rd_forests_[i].all_leaf_nodes_;
+		// std::cout<<"all_leaf_nodes :"<<rd_forests_[i].all_leaf_nodes_<<std::endl;
+	}
+	//set global regression params
 	struct parameter* regression_params = new struct parameter;
 	regression_params-> solver_type = L2R_L2LOSS_SVR_DUAL;
 	regression_params->C = 1.0/augmented_current_shapes.size();
 	regression_params->p = 0;
 
 	std::cout << "Global Regression of stage " << stage_ << std::endl;
+	// alloc model and targets
 	linear_model_x_.resize(params_.landmarks_num_per_face_);
 	linear_model_y_.resize(params_.landmarks_num_per_face_);
 	double** targets = new double*[params_.landmarks_num_per_face_];
@@ -262,7 +184,7 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 		prob->n = num_feature;
 		prob->x = global_binary_features;
 		prob->bias = -1;
-		std::cout << "regress landmark " << i << std::endl;
+		std::cout << "\tregress landmark " << i << std::endl;
 		for(int j = 0; j< augmented_current_shapes.size();j++){
 			targets[i][j] = regression_targets[j](i, 0);
 		}
@@ -295,45 +217,15 @@ std::vector<cv::Mat_<double> > Regressor::Train(const std::vector<cv::Mat_<uchar
 		}
 		predict_regression_targets[i] = doAffineTransform(a, affines[i]);
 		if (i%500 == 0 && i > 0){
-			std::cout << "predict " << i << " images" << std::endl;
+			std::cout << "\tpredict " << i << " images" << std::endl;
 		}
 	}
-	std::cout << "\n";
-
-
 	for (int i = 0; i< augmented_current_shapes.size(); i++){
 		delete[] global_binary_features[i];
 	}
 	delete[] global_binary_features;
 
 	return predict_regression_targets;
-}
-
-cv::Mat_<double> CascadeRegressor::Predict(cv::Mat_<uchar>& image,
-		cv::Mat_<double>& current_shape, BoundingBox& bbox){
-
-	for (int i = 0; i < params_.regressor_stages_; i++){
-		bbox = GetBoundingBox(current_shape);
-
-		cv::Mat mean_shape_resize = ReProjection(params_.mean_shape_, bbox);
-		cv::Mat tmp_mean_shape_resize(params_.mean_shape_.rows, 2, params_.mean_shape_.depth());
-		cv::Mat tmp_current_shape(params_.mean_shape_.rows, 2, params_.mean_shape_.depth());
-		cv::Mat(mean_shape_resize.col(0) - mean(mean_shape_resize.col(0))).copyTo(tmp_mean_shape_resize.col(0));
-		cv::Mat(mean_shape_resize.col(1) - mean(mean_shape_resize.col(1))).copyTo(tmp_mean_shape_resize.col(1));
-		cv::Mat(current_shape.col(0) - mean(current_shape.col(0))).copyTo(
-				tmp_current_shape.col(0));
-		cv::Mat(current_shape.col(1) - mean(current_shape.col(1))).copyTo(
-				tmp_current_shape.col(1));
-		cv::Mat_<double> affine;
-		getAffineTransform(tmp_mean_shape_resize, tmp_current_shape, affine);
-
-		cv::Mat_<double> shape_increaments = regressors_[i].Predict(image, current_shape, bbox, affine);
-		cv::Mat(shape_increaments.col(0) * bbox.width).copyTo(shape_increaments.col(0));
-		cv::Mat(shape_increaments.col(1) * bbox.height).copyTo(shape_increaments.col(1));
-		current_shape = shape_increaments + current_shape;
-	}
-	cv::Mat_<double> res = current_shape;
-	return res;
 }
 
 Regressor::Regressor(){
@@ -430,63 +322,6 @@ cv::Mat_<double> Regressor::Predict(cv::Mat_<uchar>& image,
 	return doAffineTransform(predict_result, affine);
 }
 
-void CascadeRegressor::LoadCascadeRegressor(std::string ModelName){
-	std::ifstream fin;
-	fin.open((ModelName + "_params.txt").c_str(), std::fstream::in);
-	params_ = Parameters();
-	fin >> params_.local_features_num_
-		>> params_.landmarks_num_per_face_
-		>> params_.regressor_stages_
-		>> params_.tree_depth_
-		>> params_.trees_num_per_forest_
-		>> params_.initial_guess_;
-
-	std::vector<double> local_radius_by_stage;
-	local_radius_by_stage.resize(params_.regressor_stages_);
-	for (int i = 0; i < params_.regressor_stages_; i++){
-		fin >> local_radius_by_stage[i];
-	}
-	params_.local_radius_by_stage_ = local_radius_by_stage;
-
-	cv::Mat_<double> mean_shape(params_.landmarks_num_per_face_, 2, 0.0);
-	for (int i = 0; i < params_.landmarks_num_per_face_; i++){
-		fin >> mean_shape(i, 0) >> mean_shape(i, 1);
-	}
-	params_.mean_shape_ = mean_shape;
-	regressors_.resize(params_.regressor_stages_);
-	for (int i = 0; i < params_.regressor_stages_; i++){
-		regressors_[i].params_ = params_;
-		regressors_[i].LoadRegressor(ModelName, i);
-		regressors_[i].ConstructLeafCount();
-	}
-}
-
-
-void CascadeRegressor::SaveCascadeRegressor(std::string ModelName){
-	std::ofstream fout;
-	fout.open((ModelName + "_params.txt").c_str(), std::fstream::out);
-	fout << params_.local_features_num_ << " "
-		<< params_.landmarks_num_per_face_ << " "
-		<< params_.regressor_stages_ << " "
-		<< params_.tree_depth_ << " "
-		<< params_.trees_num_per_forest_ << " "
-		<< params_.initial_guess_ << std::endl;
-	for (int i = 0; i < params_.regressor_stages_; i++){
-		fout << params_.local_radius_by_stage_[i] << std::endl;
-	}
-	for (int i = 0; i < params_.landmarks_num_per_face_; i++){
-		fout << params_.mean_shape_(i, 0) << " " << params_.mean_shape_(i, 1) << std::endl;
-	}
-
-	fout.close();
-
-	for (int i = 0; i < params_.regressor_stages_; i++){
-		//regressors_[i].SaveRegressor(fout);
-		regressors_[i].SaveRegressor(ModelName, i);
-		//regressors_[i].params_ = params_;
-	}
-
-}
 
 
 void Regressor::LoadRegressor(std::string ModelName, int stage){

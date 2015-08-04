@@ -24,10 +24,9 @@ Node::Node(Node* left, Node* right, double thres, bool leaf){
 	//offset_ = cv::Point2f(0, 0);
 }
 
-bool RandomForest::TrainForest(//std::vector<cv::Mat_<double>>& regression_targets,
+bool RandomForest::TrainForest(
 	const std::vector<cv::Mat_<uchar> >& images,
 	const std::vector<int>& augmented_images_index,
-	//const std::vector<cv::Mat_<double>>& augmented_ground_truth_shapes,
 	const std::vector<BoundingBox>& augmented_bboxes,
 	const std::vector<cv::Mat_<double> >& augmented_current_shapes,
 	const std::vector<cv::Mat_<double> >& affines
@@ -104,7 +103,7 @@ bool RandomForest::TrainForest(//std::vector<cv::Mat_<double>>& regression_targe
 	// std::cout << pixel_differences << std::endl;
 
 	// train Random Forest
-	std::cout << "construct each tree in the forest"<<std::endl;
+	// std::cout << "construct each tree in the forest"<<std::endl;
 
 	double overlap = 0.4;
 	int step = floor(((double)augmented_images_index.size()) * overlap / (trees_num_per_forest_ - 1));
@@ -125,15 +124,8 @@ bool RandomForest::TrainForest(//std::vector<cv::Mat_<double>>& regression_targe
 		Node* root = BuildTree(selected_indexes, pixel_differences, images_indexes, 0);
 		trees_.push_back(root);
 	}
-	/*int count = 0;
-	for (int i = 0; i < trees_num_per_forest_; i++){
-		Node* root = trees_[i];
-		count = MarkLeafIdentity(root, count);
-	}
-	all_leaf_nodes_ = count;*/
 	return true;
 }
-
 
 Node* RandomForest::BuildTree(
 	std::set<int>& selected_indexes, cv::Mat_<int>& pixel_differences,
@@ -172,23 +164,32 @@ Node* RandomForest::BuildTree(
 	}
 }
 
-int RandomForest::FindSplitFeature(Node* node, std::set<int>& selected_indexes,
-	cv::Mat_<int>& pixel_differences, std::vector<int>& images_indexes, std::vector<int>& left_indexes, std::vector<int>& right_indexes){
+int RandomForest::FindSplitFeature(
+	Node* node,
+	std::set<int>& selected_indexes,
+	cv::Mat_<int>& pixel_differences,
+	std::vector<int>& images_indexes,
+	std::vector<int>& left_indexes,
+	std::vector<int>& right_indexes
+)
+{
 	std::vector<int> val;
 	//cv::Mat_<int> sorted_fea;
 	time_t current_time;
 	current_time = time(0);
 	cv::RNG rd(current_time);
 	int threshold;
-	double var = -1000000000000.0; // use -DBL_MAX will be better
+    double var = - DBL_MAX;
+//    std::cout<<var<<std::endl;
 	int feature_index = -1;
 	std::vector<int> tmp_left_indexes, tmp_right_indexes;
 	//int j = 0, tmp_index;
 	for (int j = 0; j < local_features_num_; j++){
+        // if not selected
 		if (selected_indexes.find(j) == selected_indexes.end()){
 			tmp_left_indexes.clear();
 			tmp_right_indexes.clear();
-			double var_lc = 0.0, var_rc = 0.0, var_red = 0.0;
+			double var_lc = 0.0, var_rc = 0.0, var_red = 0.0;   // var of reduce
 			double Ex_2_lc = 0.0, Ex_lc = 0.0, Ey_2_lc = 0.0, Ey_lc = 0.0;
 			double Ex_2_rc = 0.0, Ex_rc = 0.0, Ey_2_rc = 0.0, Ey_rc = 0.0;
 			// random generate threshold
@@ -200,6 +201,7 @@ int RandomForest::FindSplitFeature(Node* node, std::set<int>& selected_indexes,
 			std::sort(data.begin(), data.end());
 			int tmp_index = floor((int)(images_indexes.size()*(0.5 + 0.9*(rd.uniform(0.0, 1.0) - 0.5))));
 			int tmp_threshold = data[tmp_index];
+            // split image into left and right
 			for (int i = 0; i < images_indexes.size(); i++){
 				int index = images_indexes[i];
 				if (pixel_differences(j, index) < tmp_threshold){
@@ -222,6 +224,7 @@ int RandomForest::FindSplitFeature(Node* node, std::set<int>& selected_indexes,
 					Ey_rc += value;
 				}
 			}
+            // compute var of left and right
 			if (tmp_left_indexes.size() == 0){
 				var_lc = 0.0;
 			} else{
@@ -234,7 +237,9 @@ int RandomForest::FindSplitFeature(Node* node, std::set<int>& selected_indexes,
 				var_rc = Ex_2_rc / tmp_right_indexes.size() - pow(Ex_rc / tmp_right_indexes.size(), 2)
 					+ Ey_2_rc / tmp_right_indexes.size() - pow(Ey_rc / tmp_right_indexes.size(), 2);
 			}
+			//compute var reduce and compare to min var reduce
 			var_red = -var_lc*tmp_left_indexes.size() - var_rc*tmp_right_indexes.size();
+            std::cout << var_red <<std::endl;
 			if (var_red > var){
 				var = var_red;
 				threshold = tmp_threshold;
@@ -258,124 +263,6 @@ int RandomForest::FindSplitFeature(Node* node, std::set<int>& selected_indexes,
 	}
 
 	return -1;
-}
-
-int RandomForest::MarkLeafIdentity(Node* node, int count){
-	std::stack<Node*> s;
-	Node* p_current = node;
-
-	if (node == NULL){
-		return count;
-	}
-	// the node in the tree is either leaf node or internal node that has both left and right children
-	while (1)//p_current || !s.empty())
-	{
-
-		if (p_current->is_leaf_){
-			p_current->leaf_identity = count;
-			count++;
-			if (s.empty()){
-				return count;
-			}
-			p_current = s.top()->right_child_;
-			s.pop();
-		}
-		else{
-			s.push(p_current);
-			p_current = p_current->left_child_;
-		}
-
-		/*while (!p_current && !s.empty()){
-			p_current = s.top();
-			s.pop();
-			p_current = p_current->right_child_;
-		}*/
-	}
-
-}
-
-cv::Mat_<double> RandomForest::GetBinaryFeatures(const cv::Mat_<double>& image,
-	const BoundingBox& bbox, const cv::Mat_<double>& current_shape, const cv::Mat_<double>& rotation, const double& scale){
-	cv::Mat_<double> res(1, all_leaf_nodes_, 0.0);
-	for (int i = 0; i < trees_num_per_forest_; i++){
-		Node* node = trees_[i];
-		while (!node->is_leaf_){
-			int direction = GetNodeOutput(node, image, bbox, current_shape, rotation, scale);
-			if (direction == -1){
-				node = node->left_child_;
-			}
-			else{
-				node = node->right_child_;
-			}
-		}
-		res(0, node->leaf_identity) = 1.0;
-	}
-	return res;
-}
-
-int RandomForest::GetBinaryFeatureIndex(int tree_index, const cv::Mat_<double>& image,
-	const BoundingBox& bbox, const cv::Mat_<double>& current_shape, const cv::Mat_<double>& rotation, const double& scale){
-	Node* node = trees_[tree_index];
-	while (!node->is_leaf_){
-		FeatureLocations& pos = node->feature_locations_;
-		double delta_x = rotation(0, 0)*pos.start.x + rotation(0, 1)*pos.start.y;
-		double delta_y = rotation(1, 0)*pos.start.x + rotation(1, 1)*pos.start.y;
-		delta_x = scale*delta_x*bbox.width / 2.0;
-		delta_y = scale*delta_y*bbox.height / 2.0;
-		int real_x = delta_x + current_shape(landmark_index_, 0);
-		int real_y = delta_y + current_shape(landmark_index_, 1);
-		real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-		real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-		int tmp = (int)image(real_y, real_x); //real_y at first
-
-		delta_x = rotation(0, 0)*pos.end.x + rotation(0, 1)*pos.end.y;
-		delta_y = rotation(1, 0)*pos.end.x + rotation(1, 1)*pos.end.y;
-		delta_x = scale*delta_x*bbox.width / 2.0;
-		delta_y = scale*delta_y*bbox.height / 2.0;
-		real_x = delta_x + current_shape(landmark_index_, 0);
-		real_y = delta_y + current_shape(landmark_index_, 1);
-		real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-		real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-		if ((tmp - (int)image(real_y, real_x)) < node->threshold_){
-			node = node->left_child_;// go left
-		}
-		else{
-			node = node->right_child_;// go right
-		}
-	}
-	return node->leaf_identity;
-}
-
-
-int RandomForest::GetNodeOutput(Node* node, const cv::Mat_<double>& image,
-	const BoundingBox& bbox, const cv::Mat_<double>& current_shape, const cv::Mat_<double>& rotation, const double& scale){
-
-	FeatureLocations& pos = node->feature_locations_;
-	double delta_x = rotation(0, 0)*pos.start.x + rotation(0, 1)*pos.start.y;
-	double delta_y = rotation(1, 0)*pos.start.x + rotation(1, 1)*pos.start.y;
-	delta_x = scale*delta_x*bbox.width / 2.0;
-	delta_y = scale*delta_y*bbox.height / 2.0;
-	int real_x = delta_x + current_shape(landmark_index_, 0);
-	int real_y = delta_y + current_shape(landmark_index_, 1);
-	real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-	real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-	int tmp = (int)image(real_y, real_x); //real_y at first
-
-	delta_x = rotation(0, 0)*pos.end.x + rotation(0, 1)*pos.end.y;
-	delta_y = rotation(1, 0)*pos.end.x + rotation(1, 1)*pos.end.y;
-	delta_x = scale*delta_x*bbox.width / 2.0;
-	delta_y = scale*delta_y*bbox.height / 2.0;
-	real_x = delta_x + current_shape(landmark_index_, 0);
-	real_y = delta_y + current_shape(landmark_index_, 1);
-	real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
-	real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-	if ((tmp - (int)image(real_y, real_x)) < node->threshold_){
-		return -1; // go left
-	}
-	else{
-		return 1; // go right
-	}
-
 }
 
 RandomForest::RandomForest(Parameters& param, int landmark_index, int stage, std::vector<cv::Mat_<double> >& regression_targets){

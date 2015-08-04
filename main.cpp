@@ -6,12 +6,13 @@
 #include "headers.h"
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <omp.h>
+//#include <omp.h>
 
 using namespace cv;
 using namespace std;
 
-void Test(const char* ModelName){
+void Test(const char* ModelName)
+{
 	CascadeRegressor cas_load;
 	cas_load.LoadCascadeRegressor(ModelName);
 	std::vector<cv::Mat_<uchar> > images;
@@ -38,7 +39,39 @@ void Test(const char* ModelName){
 	return;
 }
 
-void Train(const char* ModelName){
+void Test(const char* ModelName, const char* picName)
+{
+	CascadeRegressor cas_load;
+	cas_load.LoadCascadeRegressor(ModelName);
+
+	cv::Mat_<uchar> image = cv::imread(picName, 0);
+
+	std::string fn_haar = "./../haarcascade_frontalface_alt2.xml";
+	cv::CascadeClassifier haar_cascade;
+	bool yes = haar_cascade.load(fn_haar);
+	std::cout << "detector: " << yes << std::endl;
+
+	std::vector<cv::Rect> faces;
+	haar_cascade.detectMultiScale(image, faces, 1.1, 2, 0, cv::Size(30, 30));
+
+	for (int i = 0; i < faces.size(); i++) {
+		cv::Rect faceRec = faces[i];
+        BoundingBox bbox;
+        bbox.start_x = faceRec.x;
+        bbox.start_y = faceRec.y;
+        bbox.width = faceRec.width;
+        bbox.height = faceRec.height;
+        bbox.center_x = bbox.start_x + bbox.width / 2.0;
+        bbox.center_y = bbox.start_y + bbox.height / 2.0;
+
+		cv::Mat_<double> current_shape = ReProjection(cas_load.params_.mean_shape_, bbox);
+        cv::Mat_<double> res = cas_load.Predict(image, current_shape, bbox);
+		DrawPredictImage(image, res);
+	}
+}
+
+void Train(const char* ModelName)
+{
 	std::vector<cv::Mat_<uchar> > images;
 	std::vector<cv::Mat_<double> > ground_truth_shapes;
 	std::vector<BoundingBox> bboxes;
@@ -46,7 +79,7 @@ void Train(const char* ModelName){
 	LoadImages(images, ground_truth_shapes, bboxes, file_names, "trainset/");
 
 	Parameters params;
-	params.local_features_num_ = 5000;
+	params.local_features_num_ = 100;
 	params.landmarks_num_per_face_ = 68;
 	params.regressor_stages_ = 5;
 	params.local_radius_by_stage_.push_back(0.4);
@@ -55,9 +88,9 @@ void Train(const char* ModelName){
 	params.local_radius_by_stage_.push_back(0.1);
 	//params.local_radius_by_stage_.push_back(0.08);
 	params.local_radius_by_stage_.push_back(0.05);
-	params.tree_depth_ = 5;
+	params.tree_depth_ = 3;
 	params.trees_num_per_forest_ = 4;
-	params.initial_guess_ = 10;
+	params.initial_guess_ = 1;
 
 	params.mean_shape_ = GetMeanShape(ground_truth_shapes, bboxes);
 	CascadeRegressor cas_reg;
@@ -83,6 +116,8 @@ int main(int argc, char* argv[])
 			std::cout << "enter test\n";
 			if (argc == 3){
 				Test(argv[2]);
+			} else {
+				Test(argv[2], argv[3]);
 			}
 			return 0;
 		}
@@ -91,4 +126,3 @@ int main(int argc, char* argv[])
 	std::cout << "use [./application train ModelName] or [./application test ModelName [image_name]] \n";
 	return 0;
 }
-

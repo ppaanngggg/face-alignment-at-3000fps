@@ -40,17 +40,14 @@ public:
 		const std::vector<cv::Mat_<double> >& augmented_current_shapes,
 		const std::vector<cv::Mat_<double> >& affines
 	);
-	Node* BuildTree(std::set<int>& selected_indexes, cv::Mat_<int>& pixel_differences, std::vector<int>& images_indexes, int current_depth);
+	Node* BuildTree(
+		std::set<int>& selected_indexes,
+		cv::Mat_<int>& pixel_differences,
+		std::vector<int>& images_indexes,
+		int current_depth
+	);
 	int FindSplitFeature(Node* node, std::set<int>& selected_indexes,
 		cv::Mat_<int>& pixel_differences, std::vector<int>& images_indexes, std::vector<int>& left_indexes, std::vector<int>& right_indexes);
-	cv::Mat_<double> GetBinaryFeatures(const cv::Mat_<double>& image,
-		const BoundingBox& bbox, const cv::Mat_<double>& current_shape, const cv::Mat_<double>& rotation, const double& scale);
-	int MarkLeafIdentity(Node* node, int count);
-	int GetNodeOutput(Node* node, const cv::Mat_<double>& image,
-		const BoundingBox& bbox, const cv::Mat_<double>& current_shape, const cv::Mat_<double>& rotation, const double& scale);
-	//predict()
-	int GetBinaryFeatureIndex(int tree_index, const cv::Mat_<double>& image,
-	const BoundingBox& bbox, const cv::Mat_<double>& current_shape, const cv::Mat_<double>& rotation, const double& scale);
 	RandomForest();
 	RandomForest(Parameters& param, int landmark_index, int stage, std::vector<cv::Mat_<double> >& regression_targets);
 	void WriteTree(Node* p, std::ofstream& fout);
