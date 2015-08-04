@@ -239,7 +239,6 @@ int RandomForest::FindSplitFeature(
 			}
 			//compute var reduce and compare to min var reduce
 			var_red = -var_lc*tmp_left_indexes.size() - var_rc*tmp_right_indexes.size();
-            std::cout << var_red <<std::endl;
 			if (var_red > var){
 				var = var_red;
 				threshold = tmp_threshold;

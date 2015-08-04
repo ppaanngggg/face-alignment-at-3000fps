@@ -43,6 +43,7 @@ void CascadeRegressor::Train(const std::vector<cv::Mat_<uchar> >& images,
 			augmented_ground_truth_shapes.push_back(ground_truth_shapes_[i]);
 			augmented_bboxes.push_back(GetBoundingBox(temp));
 			augmented_current_shapes.push_back(temp);
+			DrawPredictImage(images[i], temp);
 		}
 		//choose mean shape for init
 		cv::Mat_<double> augmented_mean_shape = ReProjection(params_.mean_shape_, bboxes_[i]);

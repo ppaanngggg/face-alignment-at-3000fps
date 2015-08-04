@@ -24,6 +24,7 @@ void Test(const char* ModelName)
 	// 	cv::imshow("image", images[i]);
 	// 	cv::waitKey();
 	// }
+	double error;
 	struct timeval t1, t2;
 	gettimeofday(&t1, NULL);
 	for (int i = 0; i < images.size(); i++){
@@ -31,11 +32,13 @@ void Test(const char* ModelName)
 		//gettimeofday(&t1, NULL);
 		cv::Mat_<double> res = cas_load.Predict(images[i], current_shape, bboxes[i]);//, ground_truth_shapes[i]);
 
-		DrawPredictImage(images[i], res);
+		// DrawPredictImage(images[i], res);
+		error += CalculateError(ground_truth_shapes[i], res);
 	}
 	gettimeofday(&t2, NULL);
 	double time_full = t2.tv_sec - t1.tv_sec + (t2.tv_usec - t1.tv_usec)/1000000.0;
 	cout << "time full: " << time_full << " : " << time_full/images.size() << endl;
+	cout << "error : " << error / images.size() << endl;
 	return;
 }
 
@@ -90,7 +93,7 @@ void Train(const char* ModelName)
 	params.local_radius_by_stage_.push_back(0.05);
 	params.tree_depth_ = 3;
 	params.trees_num_per_forest_ = 4;
-	params.initial_guess_ = 1;
+	params.initial_guess_ = 5;
 
 	params.mean_shape_ = GetMeanShape(ground_truth_shapes, bboxes);
 	CascadeRegressor cas_reg;
