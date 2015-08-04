@@ -28,9 +28,9 @@ cv::Mat_<double> ReProjection(const cv::Mat_<double>& shape, const BoundingBox& 
 	// 	results(i, 1) = shape(i, 1)*bbox.height / 2.0 + bbox.center_y;
 	// }
 	double left_x, right_x;
-    cv::minMaxIdx(shape.col(0), &left_x, &right_x);
-    double top_y, bottom_y;
-    cv::minMaxIdx(shape.col(1), &top_y, &bottom_y);
+	cv::minMaxIdx(shape.col(0), &left_x, &right_x);
+	double top_y, bottom_y;
+	cv::minMaxIdx(shape.col(1), &top_y, &bottom_y);
 
 	double width_union = right_x - left_x;
 	double height_union = bottom_y - top_y;
@@ -46,7 +46,7 @@ cv::Mat_<double> ReProjection(const cv::Mat_<double>& shape, const BoundingBox& 
 
 // get the mean shape, [-1, 1]x[-1, 1]
 cv::Mat_<double> GetMeanShape(const std::vector<cv::Mat_<double> >& all_shapes,
-	const std::vector<BoundingBox>& all_bboxes)
+		const std::vector<BoundingBox>& all_bboxes)
 {
 	cv::Mat_<double> mean_shape = cv::Mat::zeros(all_shapes[0].rows, 2, CV_64F);
 	for (int i = 0; i < all_shapes.size(); i++)
@@ -60,8 +60,8 @@ cv::Mat_<double> GetMeanShape(const std::vector<cv::Mat_<double> >& all_shapes,
 }
 
 void getAffineTransform(const cv::Mat_<double>& shape_to,
-	const cv::Mat_<double>& shape_from,
-	cv::Mat_<double>& affine)
+		const cv::Mat_<double>& shape_from,
+		cv::Mat_<double>& affine)
 {
 	cv::Mat_<double> shape_from_homo = cv::Mat::ones(shape_from.rows, shape_from.cols + 1, shape_from.depth());
 	shape_from.copyTo(shape_from_homo.colRange(0,2));
@@ -94,31 +94,31 @@ cv::Mat_<double> doAffineTransform(const cv::Mat_<double>& shape, const cv::Mat_
 
 // get the rotation and scale parameters by transferring shape_from to shape_to, shape_to = M*shape_from
 void getSimilarityTransform(const cv::Mat_<double>& shape_to,
-	const cv::Mat_<double>& shape_from,
-	cv::Mat_<double>& rotation, double& scale){
+		const cv::Mat_<double>& shape_from,
+		cv::Mat_<double>& rotation, double& scale){
 	rotation = cv::Mat(2, 2, 0.0);
 	scale = 0;
 
 	// center the data
-    double center_x_1 = cv::mean(shape_to.col(0))[0];
-    double center_y_1 = cv::mean(shape_to.col(1))[0];
-    double center_x_2 = cv::mean(shape_from.col(0))[0];
-    double center_y_2 = cv::mean(shape_from.col(1))[0];
+	double center_x_1 = cv::mean(shape_to.col(0))[0];
+	double center_y_1 = cv::mean(shape_to.col(1))[0];
+	double center_x_2 = cv::mean(shape_from.col(0))[0];
+	double center_y_2 = cv::mean(shape_from.col(1))[0];
 
 	cv::Mat_<double> temp1 = shape_to.clone();
 	cv::Mat_<double> temp2 = shape_from.clone();
 
-    temp1.col(0) -= center_x_1;
-    temp1.col(1) -= center_y_1;
-    temp2.col(0) -= center_x_2;
-    temp2.col(1) -= center_y_2;
+	temp1.col(0) -= center_x_1;
+	temp1.col(1) -= center_y_1;
+	temp2.col(0) -= center_x_2;
+	temp2.col(1) -= center_y_2;
 
 
 	cv::Mat_<double> covariance1, covariance2;
 	cv::Mat_<double> mean1, mean2;
 	// calculate covariance matrix
-    cv::calcCovarMatrix(temp1, covariance1, mean1, cv::COVAR_COLS, CV_64F); //CV_COVAR_COLS
-    cv::calcCovarMatrix(temp2, covariance2, mean2, cv::COVAR_COLS, CV_64F);
+	cv::calcCovarMatrix(temp1, covariance1, mean1, cv::COVAR_COLS, CV_64F); //CV_COVAR_COLS
+	cv::calcCovarMatrix(temp2, covariance2, mean2, cv::COVAR_COLS, CV_64F);
 
 	double s1 = sqrt(norm(covariance1));
 	double s2 = sqrt(norm(covariance2));
@@ -154,7 +154,7 @@ cv::Mat_<double> LoadGroundTruthShape(const char* name){
 	getline(fin, temp); // read third line
 	for (int i = 0; i<landmarks; i++){
 		fin >> shape(i, 0) >> shape(i, 1);
-//        std::cout<<shape(i, 0)<<" "<<shape(i, 1)<<std::endl;
+		//        std::cout<<shape(i, 0)<<" "<<shape(i, 1)<<std::endl;
 	}
 	fin.close();
 	return shape;
@@ -177,8 +177,8 @@ bool ShapeInRect(cv::Mat_<double>& shape, cv::Rect& ret){
 
 	if ((max_x - min_x) > ret.width * 1.5) return false;
 	if ((max_y - min_y) > ret.height * 1.5) return false;
-    if (std::abs(sum_x - (ret.x + ret.width / 2.0)) > ret.width / 2.0) return false;
-    if (std::abs(sum_y - (ret.y + ret.height / 2.0)) > ret.height / 2.0) return false;
+	if (std::abs(sum_x - (ret.x + ret.width / 2.0)) > ret.width / 2.0) return false;
+	if (std::abs(sum_y - (ret.y + ret.height / 2.0)) > ret.height / 2.0) return false;
 	return true;
 }
 
@@ -190,9 +190,10 @@ std::vector<cv::Rect> DetectFaces(cv::Mat_<uchar>& image, cv::CascadeClassifier&
 
 
 void LoadImages(std::vector<cv::Mat_<uchar> >& images,
-	std::vector<cv::Mat_<double> >& ground_truth_shapes,
-	std::vector<BoundingBox>& bboxes,
-	std::string file_names)
+		std::vector<cv::Mat_<double> >& ground_truth_shapes,
+		std::vector<BoundingBox>& bboxes,
+		std::string file_names,
+		std::string set_name)
 {
 
 	std::cout << "loading images\n";
@@ -205,21 +206,21 @@ void LoadImages(std::vector<cv::Mat_<uchar> >& images,
 		//std::cout << "reading file: " << name << std::endl;
 		//std::cout << name << std::endl;
 
-        cv::Mat_<uchar> image = cv::imread(("./../helen/trainset/" + name + ".jpg").c_str(), 0);
-        cv::Mat_<double> ground_truth_shape = LoadGroundTruthShape(("./../helen/trainset/" + name + ".pts").c_str());
-        BoundingBox bbox = GetBoundingBox(ground_truth_shape);
-        images.push_back(image);
-        ground_truth_shapes.push_back(ground_truth_shape);
-        bboxes.push_back(bbox);
+		cv::Mat_<uchar> image = cv::imread(("./../helen/" + set_name + name + ".jpg").c_str(), 0);
+		cv::Mat_<double> ground_truth_shape = LoadGroundTruthShape(("./../helen/" + set_name + name + ".pts").c_str());
+		BoundingBox bbox = GetBoundingBox(ground_truth_shape);
+		images.push_back(image);
+		ground_truth_shapes.push_back(ground_truth_shape);
+		bboxes.push_back(bbox);
 
-    //    cv::rectangle(image, cv::Point(bbox.start_x, bbox.start_y), cv::Point(bbox.start_x + bbox.width, bbox.start_y + bbox.height), cv::Scalar(255, 0, 0));
-    //    DrawPredictImage(image, ground_truth_shape);
+		//    cv::rectangle(image, cv::Point(bbox.start_x, bbox.start_y), cv::Point(bbox.start_x + bbox.width, bbox.start_y + bbox.height), cv::Scalar(255, 0, 0));
+		//    DrawPredictImage(image, ground_truth_shape);
 
-        count++;
-        if (count%100 == 0){
-            std::cout << count << " images loaded\n";
-            return;
-        }
+		count++;
+		if (count%100 == 0){
+			std::cout << count << " images loaded\n";
+			//    return;
+		}
 	}
 	std::cout << "get " << bboxes.size() << " faces\n";
 	fin.close();
@@ -230,16 +231,21 @@ double CalculateError(cv::Mat_<double>& ground_truth_shape, cv::Mat_<double>& pr
 	cv::Mat_<double> temp;
 	double sum = 0;
 	for (int i = 0; i<ground_truth_shape.rows; i++){
-        sum += cv::norm(ground_truth_shape.row(i) - predicted_shape.row(i));
+		sum += cv::norm(ground_truth_shape.row(i) - predicted_shape.row(i));
 	}
-    return sum / (ground_truth_shape.rows);
+	return sum / (ground_truth_shape.rows);
 }
 
-void DrawPredictImage(const cv::Mat_<uchar> &image, cv::Mat_<double>& shape){
-    cv::Mat tmp_img;
-    cv::cvtColor(image, tmp_img, cv::COLOR_GRAY2BGR);
-	for (int i = 0; i < shape.rows; i++){
-        cv::circle(tmp_img, cv::Point2f(shape(i, 0), shape(i, 1)), 2, cv::Scalar(255,0,0));
+void DrawPredictImage(const cv::Mat_<uchar> &image, const cv::Mat_<double>& shape){
+	cv::Mat tmp_img;
+	cv::Mat_<double> tmp_shape = shape.clone();
+	cv::cvtColor(image, tmp_img, cv::COLOR_GRAY2BGR);
+	while (tmp_img.rows > 1024) {
+		cv::resize(tmp_img, tmp_img, cv::Size(tmp_img.cols / 2, tmp_img.rows / 2));
+		tmp_shape /= 2;
+	}
+	for (int i = 0; i < tmp_shape.rows; i++){
+		cv::circle(tmp_img, cv::Point2f(tmp_shape(i, 0), tmp_shape(i, 1)), 2, cv::Scalar(255,0,0));
 	}
 	cv::imshow("show image", tmp_img);
 	cv::waitKey(0);
@@ -247,20 +253,20 @@ void DrawPredictImage(const cv::Mat_<uchar> &image, cv::Mat_<double>& shape){
 
 BoundingBox GetBoundingBox(cv::Mat_<double>& shape)
 {
-    BoundingBox bbox;
-    double left_x;
-    double right_x;
-    cv::minMaxIdx(shape.col(0), &left_x, &right_x);
-    double top_y;
-    double bottom_y;
-    cv::minMaxIdx(shape.col(1), &top_y, &bottom_y);
+	BoundingBox bbox;
+	double left_x;
+	double right_x;
+	cv::minMaxIdx(shape.col(0), &left_x, &right_x);
+	double top_y;
+	double bottom_y;
+	cv::minMaxIdx(shape.col(1), &top_y, &bottom_y);
 
-    bbox.start_x = left_x;
-    bbox.start_y = top_y;
-    bbox.width = right_x - left_x + 1;
-    bbox.height = bottom_y - top_y + 1;
-    bbox.center_x = bbox.start_x + bbox.width / 2.;
-    bbox.center_y = bbox.start_y + bbox.height / 2.;
+	bbox.start_x = left_x;
+	bbox.start_y = top_y;
+	bbox.width = right_x - left_x + 1;
+	bbox.height = bottom_y - top_y + 1;
+	bbox.center_x = bbox.start_x + bbox.width / 2.;
+	bbox.center_y = bbox.start_y + bbox.height / 2.;
 
 	return bbox;
 }
