@@ -184,8 +184,19 @@ void LoadImages(std::vector<cv::Mat_<uchar> >& images,
 		ground_truth_shapes.push_back(ground_truth_shape);
 		bboxes.push_back(bbox);
 
+		cv::Mat_<uchar> image_flip;
+		cv::flip(image, image_flip, 1);
+		cv::Mat_<double> ground_truth_shape_flip(ground_truth_shape.rows, ground_truth_shape.cols);
+//        std::cout<<ground_truth_shape_flip.rows<<" "<<ground_truth_shape_flip.cols<<std::endl;
+		cv::Mat(image_flip.cols - ground_truth_shape.col(0)).copyTo(ground_truth_shape_flip.col(0));
+		ground_truth_shape.col(1).copyTo(ground_truth_shape_flip.col(1));
+		BoundingBox bbox_flip = GetBoundingBox(ground_truth_shape_flip);
+		images.push_back(image_flip);
+		ground_truth_shapes.push_back(ground_truth_shape_flip);
+		bboxes.push_back(bbox_flip);
+
 		//    cv::rectangle(image, cv::Point(bbox.start_x, bbox.start_y), cv::Point(bbox.start_x + bbox.width, bbox.start_y + bbox.height), cv::Scalar(255, 0, 0));
-		//    DrawPredictImage(image, ground_truth_shape);
+		   DrawPredictImage(image_flip, ground_truth_shape_flip);
 
 		count++;
 		if (count%200 == 0){
@@ -263,7 +274,7 @@ int ComputePixelDifferenct(
     real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
     real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
     int tmp = (int)image(real_y, real_x); //real_y at first
-    
+
     //           cv::circle(tmp_image, cv::Point2f(real_x, real_y), 2, cv::Scalar(0 ,0,255));
     //get second point's pixel
     delta_x = pos.end.x;
@@ -276,6 +287,6 @@ int ComputePixelDifferenct(
     real_y = delta_y + shape(landmark, 1);
     real_x = std::max(0, std::min(real_x, image.cols - 1)); // which cols
     real_y = std::max(0, std::min(real_y, image.rows - 1)); // which rows
-    
+
     return tmp - (int)image(real_y, real_x);
 }
